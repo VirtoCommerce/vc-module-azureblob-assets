@@ -21,6 +21,7 @@
   <assemblyFile>VirtoCommerce.AzureBlobAssetsModule.Web.dll</assemblyFile>
   <moduleType>VirtoCommerce.AzureBlobAssetsModule.Web.Module, VirtoCommerce.AzureBlobAssetsModule.Web</moduleType>
     <dependencies>
+      <dependency id="VirtoCommerce.Assets" version="3.0.0" />
     </dependencies>
   <groups>
     <group></group>
