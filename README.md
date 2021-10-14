@@ -1,1 +1,2 @@
-# vc-module-azureblob-assets
+# vc-module-assets
+Basic infrastructure for the assets storage
