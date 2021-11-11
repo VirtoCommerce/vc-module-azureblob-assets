@@ -1,13 +1,14 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Blobs.Specialized;
-using Microsoft.Extensions.Options;
 using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AzureBlobAssets.Abstractions;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Exceptions;
@@ -17,7 +18,7 @@ using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
-    public class AzureBlobProvider : BasicBlobProvider, IBlobStorageProvider, IBlobUrlResolver
+    public class AzureBlobProvider : BasicBlobProvider, IBlobStorageProvider, IBlobUrlResolver, IAzureBlobProvider
     {
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
@@ -57,6 +58,17 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             return result;
+        }
+
+        public bool Exists(string blobUrl)
+        {
+            return ExistsAsync(blobUrl).GetAwaiter().GetResult();
+        }
+
+        public async Task<bool> ExistsAsync(string blobUrl)
+        {
+            var blobInfo = await GetBlobInfoAsync(blobUrl);
+            return blobInfo != null;
         }
 
         /// <summary>
