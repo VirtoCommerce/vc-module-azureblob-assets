@@ -7,8 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
-using VirtoCommerce.AzureBlobAssets.Abstractions;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Exceptions;
@@ -18,7 +18,7 @@ using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
-    public class AzureBlobProvider : BasicBlobProvider, IBlobStorageProvider, IBlobUrlResolver, IAzureBlobProvider
+    public class AzureBlobProvider : BasicBlobProvider, IBlobStorageProvider, IBlobUrlResolver, ICommonBlobProvider
     {
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
@@ -31,6 +31,21 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
         }
+
+        #region ICommonBlobProvider members
+
+        public bool Exists(string blobUrl)
+        {
+            return ExistsAsync(blobUrl).GetAwaiter().GetResult();
+        }
+
+        public async Task<bool> ExistsAsync(string blobUrl)
+        {
+            var blobInfo = await GetBlobInfoAsync(blobUrl);
+            return blobInfo != null;
+        }
+
+        #endregion ICommonBlobProvider members
 
         #region IBlobStorageProvider Members
 
@@ -58,17 +73,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             return result;
-        }
-
-        public bool Exists(string blobUrl)
-        {
-            return ExistsAsync(blobUrl).GetAwaiter().GetResult();
-        }
-
-        public async Task<bool> ExistsAsync(string blobUrl)
-        {
-            var blobInfo = await GetBlobInfoAsync(blobUrl);
-            return blobInfo != null;
         }
 
         /// <summary>
