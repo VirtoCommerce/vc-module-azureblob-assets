@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4FD6A475-8E2
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VirtoCommerce.AzureBlobAssetsModule.Web", "src\VirtoCommerce.AzureBlobAssetsModule.Web\VirtoCommerce.AzureBlobAssetsModule.Web.csproj", "{D1428B3A-FFAD-4DC3-AF40-728155BCF262}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtoCommerce.AzureBlobAssetsModule.Core", "src\VirtoCommerce.AzureBlobAssetsModule.Core\VirtoCommerce.AzureBlobAssetsModule.Core.csproj", "{25980281-AC7A-420A-B5E1-71942DA00A8F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VirtoCommerce.AzureBlobAssetsModule.Core", "src\VirtoCommerce.AzureBlobAssetsModule.Core\VirtoCommerce.AzureBlobAssetsModule.Core.csproj", "{25980281-AC7A-420A-B5E1-71942DA00A8F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{652ACC5D-BCF1-491B-91B4-1D524C8D10BA}"
 EndProject
