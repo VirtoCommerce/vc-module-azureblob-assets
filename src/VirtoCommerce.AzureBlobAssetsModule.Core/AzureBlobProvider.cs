@@ -433,7 +433,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private static string EscapeUri(string stringToEscape)
         {
-            return Uri.EscapeUriString(stringToEscape);
+            return Uri.EscapeDataString(stringToEscape);
         }
 
         private BlobContainerClient GetBlobContainer(string name)
