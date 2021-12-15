@@ -444,7 +444,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             BlobContainerClient result = null;
             // Retrieve container reference.
             var container = _blobServiceClient.GetBlobContainerClient(name);
-            if (container.ExistsAsync().Result)
+            if (container.Exists())
             {
                 result = container;
             }
