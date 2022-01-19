@@ -433,7 +433,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private static string EscapeUri(string stringToEscape)
         {
+#pragma warning disable SYSLIB0013 // Type or member is obsolete
+            // Unfortunately, no replacement for this call. We should consider to remove this call at all.
             return Uri.EscapeUriString(stringToEscape);
+#pragma warning restore SYSLIB0013 // Type or member is obsolete
         }
 
         private BlobContainerClient GetBlobContainer(string name)
@@ -441,7 +444,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             BlobContainerClient result = null;
             // Retrieve container reference.
             var container = _blobServiceClient.GetBlobContainerClient(name);
-            if (container.ExistsAsync().Result)
+            if (container.Exists())
             {
                 result = container;
             }
