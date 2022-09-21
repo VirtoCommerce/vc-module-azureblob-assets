@@ -465,6 +465,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 Name = fileName,
                 ContentType = contentType,
                 Size = props.ContentLength,
+                CreatedDate = props.CreatedOn.DateTime,
                 ModifiedDate = props.LastModified.DateTime,
                 RelativeUrl = relativeUrl
             };
@@ -483,6 +484,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 Name = fileName,
                 ContentType = contentType,
                 Size = blob.Properties.ContentLength ?? 0,
+                CreatedDate = blob.Properties.CreatedOn.Value.DateTime,
                 ModifiedDate = blob.Properties.LastModified?.DateTime,
                 RelativeUrl = relativeUrl
             };
