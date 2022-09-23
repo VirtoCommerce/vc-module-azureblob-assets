@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <id>VirtoCommerce.AzureBlobAssets</id>
-  <version>3.201.0</version>
+  <version>3.202.0</version>
   <version-tag />
   <platformVersion>3.200.0</platformVersion>
   <title>Azure blob assets module</title>
@@ -16,7 +16,7 @@
   <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.png</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
   <releaseNotes />
-  <copyright>Copyright © 2021 Virto Commerce. All rights reserved</copyright>
+  <copyright>Copyright © 2022 Virto Commerce. All rights reserved</copyright>
   <tags>assets</tags>
   <assemblyFile>VirtoCommerce.AzureBlobAssetsModule.Web.dll</assemblyFile>
   <moduleType>VirtoCommerce.AzureBlobAssetsModule.Web.Module, VirtoCommerce.AzureBlobAssetsModule.Web</moduleType>

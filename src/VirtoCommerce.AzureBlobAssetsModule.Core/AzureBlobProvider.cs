@@ -194,6 +194,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                         prefix += keyword;
                     }
 
+                    var containerProperties = await container.GetPropertiesAsync();
+
                     // Call the listing operation and return pages of the specified size.
                     var resultSegment = container.GetBlobsByHierarchyAsync(prefix: prefix, delimiter: Delimiter)
                         .AsPages();
@@ -216,6 +218,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                                 folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobhierarchyItem.Prefix));
                                 folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
                                 folder.RelativeUrl = folder.Url.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+                                folder.CreatedDate = containerProperties.Value.LastModified.UtcDateTime;
+                                folder.ModifiedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 result.Results.Add(folder);
                             }
                             else
@@ -465,7 +469,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 Name = fileName,
                 ContentType = contentType,
                 Size = props.ContentLength,
-                ModifiedDate = props.LastModified.DateTime,
+                CreatedDate = props.CreatedOn.UtcDateTime,
+                ModifiedDate = props.LastModified.UtcDateTime,
                 RelativeUrl = relativeUrl
             };
         }
@@ -483,7 +488,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 Name = fileName,
                 ContentType = contentType,
                 Size = blob.Properties.ContentLength ?? 0,
-                ModifiedDate = blob.Properties.LastModified?.DateTime,
+                CreatedDate = blob.Properties.CreatedOn.Value.UtcDateTime,
+                ModifiedDate = blob.Properties.LastModified?.UtcDateTime,
                 RelativeUrl = relativeUrl
             };
         }
