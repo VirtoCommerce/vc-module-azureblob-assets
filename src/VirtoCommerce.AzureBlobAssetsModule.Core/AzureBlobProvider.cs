@@ -477,7 +477,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private BlobInfo ConvertBlobToBlobInfo(BlobItem blob, string baseUri)
         {
-            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, EscapeUri(blob.Name));
+            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, Uri.EscapeDataString(blob.Name));
             var relativeUrl = absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
             var fileName = Path.GetFileName(blob.Name);
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
