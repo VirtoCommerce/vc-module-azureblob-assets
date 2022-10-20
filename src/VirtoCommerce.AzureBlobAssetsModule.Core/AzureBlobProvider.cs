@@ -479,10 +479,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             // espace only file name because Uri.EscapeDataString() escapes slashes, which we don't want
             var fileName = Path.GetFileName(blob.Name);
-            var blobNameWithoutFileName = blob.Name.Replace(fileName, string.Empty);
+            var blobPath = string.IsNullOrEmpty(fileName) ? blob.Name : blob.Name.Replace(fileName, string.Empty);
             var escapedFileName = Uri.EscapeDataString(fileName);
 
-            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, $"{blobNameWithoutFileName}{escapedFileName}");
+            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, $"{blobPath}{escapedFileName}");
             var relativeUrl = absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
 
