@@ -437,10 +437,12 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private static string EscapeUri(string stringToEscape)
         {
-#pragma warning disable SYSLIB0013 // Type or member is obsolete
-            // Unfortunately, no replacement for this call. We should consider to remove this call at all.
-            return Uri.EscapeUriString(stringToEscape);
-#pragma warning restore SYSLIB0013 // Type or member is obsolete
+            // espace only file name because Uri.EscapeDataString() escapes slashes, which we don't want
+            var fileName = Path.GetFileName(stringToEscape);
+            var blobPath = string.IsNullOrEmpty(fileName) ? stringToEscape : stringToEscape.Replace(fileName, string.Empty);
+            var escapedFileName = Uri.EscapeDataString(fileName);
+
+            return $"{blobPath}{escapedFileName}";
         }
 
         private BlobContainerClient GetBlobContainer(string name)
@@ -477,12 +479,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private BlobInfo ConvertBlobToBlobInfo(BlobItem blob, string baseUri)
         {
-            // espace only file name because Uri.EscapeDataString() escapes slashes, which we don't want
             var fileName = Path.GetFileName(blob.Name);
-            var blobPath = string.IsNullOrEmpty(fileName) ? blob.Name : blob.Name.Replace(fileName, string.Empty);
-            var escapedFileName = Uri.EscapeDataString(fileName);
-
-            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, $"{blobPath}{escapedFileName}");
+            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, EscapeUri(blob.Name));
             var relativeUrl = absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
 
