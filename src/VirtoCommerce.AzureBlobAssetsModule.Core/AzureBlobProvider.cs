@@ -92,8 +92,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var uri = blobUrl.IsAbsoluteUrl() ? new Uri(blobUrl) : new Uri(_blobServiceClient.Uri, blobUrl.TrimStart(Delimiter[0]));
-            var blob = new BlobClient(new Uri(_blobServiceClient.Uri, uri.AbsolutePath.TrimStart('/')));
+            var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
+            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
 
             return blob.OpenReadAsync();
         }
