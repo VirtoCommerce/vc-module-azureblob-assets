@@ -4,6 +4,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
     public class AzureBlobOptions
     {
+        public string RootPath { get; set; }
+
         [Required]
         public string ConnectionString { get; set; }
         

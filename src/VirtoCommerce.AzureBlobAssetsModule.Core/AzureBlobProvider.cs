@@ -25,11 +25,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private const string Delimiter = "/";
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _cdnUrl;
+        private readonly string _rootPath;
 
         public AzureBlobProvider(IOptions<AzureBlobOptions> options, IOptions<PlatformOptions> platformOptions, ISettingsManager settingsManager) : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
+            _rootPath = options.Value.RootPath;
         }
 
         #region ICommonBlobProvider members
@@ -373,7 +375,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #region IBlobUrlResolver Members
 
-        public string GetAbsoluteUrl(string blobKey)
+        public virtual string GetAbsoluteUrl(string blobKey)
         {
             var result = blobKey;
             if (!blobKey.IsAbsoluteUrl())
@@ -385,6 +387,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     var cdnUriBuilder = new UriBuilder(_blobServiceClient.Uri.Scheme, _cdnUrl);
                     baseUrl = cdnUriBuilder.Uri.AbsoluteUri;
                 }
+
+                baseUrl = UrlHelperExtensions.Combine(baseUrl, _rootPath);
 
                 result = UrlHelperExtensions.Combine(baseUrl, EscapeUri(blobKey));
             }
