@@ -271,9 +271,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var directoryPath = GetDirectoryPathFromUrl(path);
             if (!string.IsNullOrEmpty(directoryPath))
             {
-                //Need upload empty blob because azure blob storage not support direct directory creation
+                // Need to upload an empty '.keep' blob because Azure Blob Storage does not support direct directory creation
                 using var stream = new MemoryStream(new byte[0]);
-                await container.GetBlockBlobClient(directoryPath).UploadAsync(stream);
+                await container.GetBlockBlobClient($"{directoryPath}.keep").UploadAsync(stream);
             }
         }
 
