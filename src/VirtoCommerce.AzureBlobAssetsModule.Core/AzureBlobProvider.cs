@@ -159,7 +159,14 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         protected static string NormalizeUrl(string blobUrl)
         {
-            return (new Uri(blobUrl)).AbsoluteUri;
+            try
+            {
+                return (new Uri(blobUrl)).AbsoluteUri;
+            }
+            catch (Exception)
+            {
+                return blobUrl;
+            }
         }
 
         public virtual async Task RemoveAsync(string[] urls)
