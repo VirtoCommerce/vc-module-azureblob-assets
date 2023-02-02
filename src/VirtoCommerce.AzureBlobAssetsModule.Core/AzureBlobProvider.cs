@@ -110,6 +110,14 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         public virtual async Task<Stream> OpenWriteAsync(string blobUrl)
         {
+            if (string.IsNullOrEmpty(blobUrl))
+            {
+                throw new ArgumentNullException(nameof(blobUrl));
+            }
+
+            // Normilize Url if blobUrl has wrong encoded, like contains space  
+            blobUrl = NormalizeUrl(blobUrl);
+
             var filePath = GetFilePathFromUrl(blobUrl);
             var fileName = Path.GetFileName(filePath);
 
@@ -147,12 +155,24 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return new FlushLessStream(await blob.OpenWriteAsync(true, options));
         }
 
+        protected static string NormalizeUrl(string blobUrl)
+        {
+            try
+            {
+                return (new Uri(blobUrl)).AbsoluteUri;
+            }
+            catch (Exception)
+            {
+                return blobUrl;
+            }
+        }
+
         public virtual async Task RemoveAsync(string[] urls)
         {
             foreach (var url in urls.Where(x => !string.IsNullOrWhiteSpace(x)))
             {
                 var absoluteUri = url.IsAbsoluteUrl()
-                    ? new Uri(url).ToString()
+                    ? url
                     : UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), url);
                 var blobContainer = GetBlobContainer(GetContainerNameFromUrl(absoluteUri));
 
@@ -215,11 +235,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                                    .Split(new[] { Delimiter }, StringSplitOptions.RemoveEmptyEntries)
                                    .Last();
 
-                                folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobhierarchyItem.Prefix));
+                                var folderUrlBuilder = new UriBuilder(new Uri(baseUriEscaped));
+                                folderUrlBuilder.Path += Delimiter + blobhierarchyItem.Prefix;
+                                folder.Url = folderUrlBuilder.ToString();
                                 folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
                                 folder.RelativeUrl = folder.Url.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+
                                 folder.CreatedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 folder.ModifiedDate = containerProperties.Value.LastModified.UtcDateTime;
+
                                 result.Results.Add(folder);
                             }
                             else
@@ -246,7 +270,11 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     {
                         var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
                         folder.Name = item.Name.Split(Delimiter).Last();
-                        folder.Url = EscapeUri(UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), item.Name));
+
+                        var folderUrlBuilder = new UriBuilder(_blobServiceClient.Uri);
+                        folderUrlBuilder.Path += item.Name + Delimiter;
+                        folder.Url = folderUrlBuilder.ToString();
+
                         result.Results.Add(folder);
                     }
                 }
@@ -258,15 +286,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         public virtual async Task CreateFolderAsync(BlobFolder folder)
         {
-            var path = folder.ParentUrl == null ?
-                        folder.Name :
-                        UrlHelperExtensions.Combine(folder.ParentUrl, folder.Name);
+            var newFolderUrl = folder.Name;
 
-            var containerName = GetContainerNameFromUrl(path);
+            if (folder.ParentUrl != null)
+            {
+                var newFolderUriBuilder = new UriBuilder(new Uri(folder.ParentUrl));
+                newFolderUriBuilder.Path += Delimiter + folder.Name;
+                newFolderUrl = newFolderUriBuilder.ToString();
+            }
+
+            var containerName = GetContainerNameFromUrl(newFolderUrl);
             var container = _blobServiceClient.GetBlobContainerClient(containerName);
             await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-            var directoryPath = GetDirectoryPathFromUrl(path);
+            var directoryPath = GetDirectoryPathFromUrl(newFolderUrl);
             if (!string.IsNullOrEmpty(directoryPath))
             {
                 // Need to upload an empty '.keep' blob because Azure Blob Storage does not support direct directory creation
@@ -402,6 +435,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private string[] GetOutlineFromUrl(string url)
         {
             var relativeUrl = url;
+
             if (url.IsAbsoluteUrl())
             {
                 relativeUrl = Uri.UnescapeDataString(new Uri(url).AbsolutePath);
@@ -419,13 +453,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? result + Delimiter : null;
+            return !string.IsNullOrEmpty(result) ? Uri.UnescapeDataString(result) + Delimiter : null;
         }
 
         private string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? result : null;
+            return !string.IsNullOrEmpty(result) ? Uri.UnescapeDataString(result) : null;
         }
 
         private string GetParentUrl(string baseUri, string blobPrefix)
@@ -479,9 +513,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private BlobInfo ConvertBlobToBlobInfo(BlobItem blob, string baseUri)
         {
-            var fileName = Path.GetFileName(blob.Name);
-            var absoluteUrl = UrlHelperExtensions.Combine(baseUri, EscapeUri(blob.Name));
+            var fileUrlBuilder = new UriBuilder(new Uri(baseUri));
+            fileUrlBuilder.Path = fileUrlBuilder.Path + "/" + blob.Name;
+            var absoluteUrl = fileUrlBuilder.ToString();
+
             var relativeUrl = absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+
+            var fileName = Path.GetFileName(blob.Name);
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
 
             return new BlobInfo
