@@ -1,12 +1,12 @@
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Blobs.Specialized;
-using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
+using Microsoft.Extensions.Options;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.Platform.Core;
@@ -521,7 +521,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             fileUrlBuilder.Path = fileUrlBuilder.Path + "/" + blob.Name;
             var absoluteUrl = fileUrlBuilder.ToString();
 
-            var relativeUrl = absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+            //var relativeUrl =  absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+            var relativeUrl = new Uri(absoluteUrl).LocalPath;
+            var prefix = "/" + _rootPath;
+            if (relativeUrl.StartsWith(prefix))
+            {
+                relativeUrl = relativeUrl.Substring(prefix.Length);
+            }
 
             var fileName = Path.GetFileName(blob.Name);
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
