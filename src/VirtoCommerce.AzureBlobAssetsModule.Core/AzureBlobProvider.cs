@@ -94,8 +94,16 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
-            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+            var containerName = GetContainerNameFromUrl(_rootPath);
+            var blobPath = UrlHelperExtensions.Combine(_rootPath, blobUrl);
+
+            if (blobPath.StartsWith(containerName))
+            {
+                blobPath = blobPath.Substring(containerName.Length);
+            }
+
+            var container = _blobServiceClient.GetBlobContainerClient(containerName);
+            var blob = container.GetBlockBlobClient(blobPath);
 
             return blob.OpenReadAsync();
         }
@@ -239,9 +247,16 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
                                 var folderUrlBuilder = new UriBuilder(new Uri(baseUriEscaped));
                                 folderUrlBuilder.Path += Delimiter + blobhierarchyItem.Prefix;
-                                folder.Url = folderUrlBuilder.ToString();
+                                folder.Url = folderUrlBuilder.Uri.AbsoluteUri;
                                 folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
-                                folder.RelativeUrl = folder.Url.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+                                folder.RelativeUrl = "/" + folder.Url.Replace(EscapeUri(_blobServiceClient.Uri.AbsoluteUri), string.Empty);
+
+                                var prefixPath = "/" + _rootPath;
+                                if (folder.RelativeUrl.StartsWith(prefixPath))
+                                {
+                                    folder.RelativeUrl = folder.RelativeUrl.Substring(prefixPath.Length);
+                                }
+
 
                                 folder.CreatedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 folder.ModifiedDate = containerProperties.Value.LastModified.UtcDateTime;
@@ -498,14 +513,21 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private BlobInfo ConvertBlobToBlobInfo(BlobClient blob, BlobProperties props)
         {
-            var absoluteUrl = blob.Uri;
-            var relativeUrl = UrlHelperExtensions.Combine(GetContainerNameFromUrl(blob.Uri.ToString()), EscapeUri(blob.Name));
+            var absoluteUrl = blob.Uri.AbsoluteUri;
+            var relativeUrl = blob.Uri.LocalPath;
+
+            var prefix = "/" + _rootPath;
+            if (relativeUrl.StartsWith(prefix))
+            {
+                relativeUrl = relativeUrl.Substring(prefix.Length);
+            }
+
             var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
 
             return new BlobInfo
             {
-                Url = absoluteUrl.ToString(),
+                Url = absoluteUrl,
                 Name = fileName,
                 ContentType = contentType,
                 Size = props.ContentLength,
@@ -519,10 +541,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             var fileUrlBuilder = new UriBuilder(new Uri(baseUri));
             fileUrlBuilder.Path = fileUrlBuilder.Path + "/" + blob.Name;
-            var absoluteUrl = fileUrlBuilder.ToString();
+            var absoluteUri = fileUrlBuilder.Uri;
+            var absoluteUrl = absoluteUri.AbsoluteUri;
 
-            //var relativeUrl =  absoluteUrl.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
-            var relativeUrl = new Uri(absoluteUrl).LocalPath;
+            var relativeUrl = absoluteUri.LocalPath;
             var prefix = "/" + _rootPath;
             if (relativeUrl.StartsWith(prefix))
             {
