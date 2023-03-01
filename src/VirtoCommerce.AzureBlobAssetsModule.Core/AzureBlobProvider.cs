@@ -64,7 +64,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             if (string.IsNullOrEmpty(blobUrl))
                 throw new ArgumentNullException(nameof(blobUrl));
 
-            //var uri = blobUrl.IsAbsoluteUrl() ? new Uri(blobUrl) : new Uri(_blobServiceClient.Uri, blobUrl.TrimStart(Delimiter[0]));
             BlobInfo result = null;
             try
             {
@@ -206,7 +205,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                                .Last();
 
                             var folderUrlBuilder = new UriBuilder(new Uri(baseUriEscaped));
-                            folderUrlBuilder.Path += Delimiter + blobHierarchyItem.Prefix;
+                            folderUrlBuilder.Path = string.Join(Delimiter, new[] { folderUrlBuilder.Path, blobHierarchyItem.Prefix });
                             folder.Url = folderUrlBuilder.Uri.AbsoluteUri;
                             folder.ParentUrl = GetParentUrl(baseUriEscaped, blobHierarchyItem.Prefix);
                             folder.RelativeUrl = Uri.UnescapeDataString(folderUrlBuilder.Path);
@@ -430,14 +429,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             parts = parts.Select(Uri.EscapeDataString).ToArray();
             var result = string.Join(Delimiter, parts);
             return result;
-
-
-
-            //var fileName = Path.GetFileName(stringToEscape);
-            //var blobPath = string.IsNullOrEmpty(fileName) ? stringToEscape : stringToEscape.Replace(fileName, string.Empty);
-            //var escapedFileName = Uri.EscapeDataString(fileName);
-
-            //return $"{blobPath}{escapedFileName}";
         }
 
         private BlobContainerClient GetBlobContainerClient()
@@ -468,7 +459,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var prefix = "/" + _rootPath;
             if (relativeUrl.StartsWith(prefix))
             {
-                relativeUrl = "/" + relativeUrl.Substring(prefix.Length);
+                relativeUrl = "/" + relativeUrl[prefix.Length..];
             }
 
             var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
