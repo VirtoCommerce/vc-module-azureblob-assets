@@ -242,17 +242,17 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
                 await foreach (var containerPage in resultSegment)
                 {
-                    foreach (var item in containerPage.Values)
+                    var folders = containerPage.Values.Select(x =>
                     {
                         var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
-                        folder.Name = item.Name.Split(Delimiter).Last();
+                        folder.Name = x.Name.Split(Delimiter).Last();
                         folder.Url = EscapeUri(UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), item.Name));
-                        result.Results.Add(folder);
-                    }
+                    });
+                    result.Results.AddRange(folders);
                 }
             }
 
-            result.TotalCount = result.Results.Count();
+            result.TotalCount = result.Results.Count;
             return result;
         }
 
