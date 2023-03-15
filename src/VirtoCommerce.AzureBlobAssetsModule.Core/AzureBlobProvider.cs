@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Web;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -111,7 +112,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public virtual async Task<Stream> OpenWriteAsync(string blobUrl)
         {
             var filePath = GetFilePathFromUrl(blobUrl);
-            var fileName = Path.GetFileName(filePath);
 
             if (filePath == null)
             {
@@ -133,7 +133,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 HttpHeaders = new BlobHttpHeaders
                 {
                     // Use HTTP response headers to instruct the browser regarding the safe use of uploaded files, when downloaded from the system
-                    ContentType = MimeTypeResolver.ResolveContentType(fileName),
+                    ContentType = MimeTypeResolver.ResolveContentType(filePath),
                     // Leverage Browser Caching - 7days
                     // Setting Cache-Control on Azure Blobs can help reduce bandwidth and improve the performance by preventing consumers from having to continuously download resources.
                     // More Info https://developers.google.com/speed/docs/insights/LeverageBrowserCaching
@@ -186,7 +186,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
                 if (container != null)
                 {
-                    var baseUriEscaped = EscapeUri(container.Uri.AbsoluteUri);
+                    var baseUriEscaped = container.Uri.AbsoluteUri; // absoluteUri is escaped already
                     var prefix = GetDirectoryPathFromUrl(folderUrl);
                     if (!string.IsNullOrEmpty(keyword))
                     {
@@ -217,7 +217,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
                                 folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobhierarchyItem.Prefix));
                                 folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
-                                folder.RelativeUrl = folder.Url.Replace(EscapeUri(_blobServiceClient.Uri.ToString()), string.Empty);
+                                folder.RelativeUrl = folder.Url.Replace(_blobServiceClient.Uri.AbsoluteUri.TrimEnd(Delimiter[0]), string.Empty);
                                 folder.CreatedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 folder.ModifiedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 result.Results.Add(folder);
@@ -246,7 +246,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     {
                         var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
                         folder.Name = x.Name.Split(Delimiter).Last();
-                        folder.Url = EscapeUri(UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), item.Name));
+                        folder.Url = EscapeUri(UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), x.Name));
+                        return folder;
                     });
                     result.Results.AddRange(folders);
                 }
@@ -419,13 +420,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? result + Delimiter : null;
+            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) + Delimiter : null;
         }
 
         private string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? result : null;
+            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
         }
 
         private string GetParentUrl(string baseUri, string blobPrefix)
@@ -437,12 +438,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private static string EscapeUri(string stringToEscape)
         {
-            // espace only file name because Uri.EscapeDataString() escapes slashes, which we don't want
-            var fileName = Path.GetFileName(stringToEscape);
-            var blobPath = string.IsNullOrEmpty(fileName) ? stringToEscape : stringToEscape.Replace(fileName, string.Empty);
-            var escapedFileName = Uri.EscapeDataString(fileName);
+            var uri = new Uri(stringToEscape, UriKind.RelativeOrAbsolute);
+            if (uri.IsAbsoluteUri)
+            {
+                return uri.AbsoluteUri;
+            }
 
-            return $"{blobPath}{escapedFileName}";
+            var parts = stringToEscape.Split(new[] { Delimiter[0] });
+            return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
+
+            //var fileName = Path.GetFileName(stringToEscape);
+            //var blobPath = string.IsNullOrEmpty(fileName) ? stringToEscape : stringToEscape.Replace(fileName, string.Empty);
+            //var escapedFileName = Uri.EscapeDataString(fileName);
+
+            //return $"{blobPath}{escapedFileName}";
         }
 
         private BlobContainerClient GetBlobContainer(string name)
@@ -461,13 +470,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private BlobInfo ConvertBlobToBlobInfo(BlobClient blob, BlobProperties props)
         {
             var absoluteUrl = blob.Uri;
-            var relativeUrl = UrlHelperExtensions.Combine(GetContainerNameFromUrl(blob.Uri.ToString()), EscapeUri(blob.Name));
+            var relativeUrl = UrlHelperExtensions.Combine(GetContainerNameFromUrl(blob.Uri.AbsoluteUri), EscapeUri(blob.Name));
             var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
             var contentType = MimeTypeResolver.ResolveContentType(fileName);
 
             return new BlobInfo
             {
-                Url = absoluteUrl.ToString(),
+                Url = absoluteUrl.AbsoluteUri,
                 Name = fileName,
                 ContentType = contentType,
                 Size = props.ContentLength,
