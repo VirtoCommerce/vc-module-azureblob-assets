@@ -210,11 +210,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                             {
                                 var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
 
-                                // No Unescaping for Name. Unescaping a string that has been previously unescaped can lead to ambiguities and errors.
-                                folder.Name = blobhierarchyItem.Prefix
-                                   .Split(new[] { Delimiter }, StringSplitOptions.RemoveEmptyEntries)
-                                   .Last();
-
+                                folder.Name = GetOutlineFromUrl(blobhierarchyItem.Prefix).Last();
                                 folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobhierarchyItem.Prefix));
                                 folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
                                 folder.RelativeUrl = folder.Url.Replace(_blobServiceClient.Uri.AbsoluteUri.TrimEnd(Delimiter[0]), string.Empty);
@@ -408,8 +404,19 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 relativeUrl = Uri.UnescapeDataString(new Uri(url).AbsolutePath);
             }
 
-            return relativeUrl.Split(new[] { Delimiter, "\\" },
-                StringSplitOptions.RemoveEmptyEntries);
+            var start = 0;
+            var end = 0;
+            if (relativeUrl.StartsWith(Delimiter))
+            {
+                start++;
+            }
+            if (relativeUrl.EndsWith(Delimiter))
+            {
+                end++;
+            }
+            relativeUrl = relativeUrl[start..^end];
+
+            return relativeUrl.Split(new[] { Delimiter[0], '\\' }); // name may be empty
         }
 
         private string GetContainerNameFromUrl(string url)
