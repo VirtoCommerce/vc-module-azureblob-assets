@@ -263,7 +263,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var container = _blobServiceClient.GetBlobContainerClient(containerName);
             await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-            var directoryPath = GetDirectoryPathFromUrl(path);
+            var directoryPath = string.Join(Delimiter, GetDirectoryPathFromUrl(path).TrimEnd(Delimiter[0]), ".keep");
             if (!string.IsNullOrEmpty(directoryPath))
             {
                 //Need upload empty blob because azure blob storage not support direct directory creation
