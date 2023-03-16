@@ -453,12 +453,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             var parts = stringToEscape.Split(new[] { Delimiter[0] });
             return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
-
-            //var fileName = Path.GetFileName(stringToEscape);
-            //var blobPath = string.IsNullOrEmpty(fileName) ? stringToEscape : stringToEscape.Replace(fileName, string.Empty);
-            //var escapedFileName = Uri.EscapeDataString(fileName);
-
-            //return $"{blobPath}{escapedFileName}";
         }
 
         private BlobContainerClient GetBlobContainer(string name)
