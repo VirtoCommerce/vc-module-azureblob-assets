@@ -35,14 +35,14 @@ plugins:
 site_name: Virto Commerce
 site_description: Virto Commerce Documentation
 site_author: Virto Commerce
-site_url: https://virtocommerce.com/docs/latest
+site_url: https://docs.virtocommerce.org
 
 # Repository
 repo_name: VirtoCommerce/vc-module-store
-repo_url: https://github.com/VirtoCommerce/vc-module-store
+repo_url: https://github.com/VirtoCommerce/vc-module-azureblob-assets
 
 # Copyright
-copyright: Copyright &copy; 2020. All rights reserved.
+copyright: Copyright &copy; 2023. All rights reserved.
 
 extra:
     social:

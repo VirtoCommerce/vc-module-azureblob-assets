@@ -4,8 +4,8 @@
   <version>3.211.0</version>
   <version-tag />
   <platformVersion>3.200.0</platformVersion>
-  <title>Azure blob assets module</title>
-  <description />
+  <title>Azure Blob Storage Assets Provider</title>
+  <description>Provide integration with Azure Blob Storage for Assets Management</description>
   <authors>
     <author>Virto Commerce</author>
   </authors>
