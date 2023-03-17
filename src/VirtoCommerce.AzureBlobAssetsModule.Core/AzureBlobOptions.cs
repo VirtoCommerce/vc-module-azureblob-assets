@@ -4,11 +4,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
     public class AzureBlobOptions
     {
-        public string RootPath { get; set; }
-
         [Required]
         public string ConnectionString { get; set; }
-        
+
         /// <summary>
         /// Url of the CDN server
         /// </summary>
