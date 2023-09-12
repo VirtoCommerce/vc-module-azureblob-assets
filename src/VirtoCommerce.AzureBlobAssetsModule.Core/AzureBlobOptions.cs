@@ -11,6 +11,5 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// Url of the CDN server
         /// </summary>
         public string CdnUrl { get; set; }
-        public string RootPath { get; set; }
     }
 }
