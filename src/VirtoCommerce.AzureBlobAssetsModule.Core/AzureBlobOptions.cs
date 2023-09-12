@@ -6,10 +6,11 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
     {
         [Required]
         public string ConnectionString { get; set; }
-        
+
         /// <summary>
         /// Url of the CDN server
         /// </summary>
         public string CdnUrl { get; set; }
+        public string RootPath { get; set; }
     }
 }
