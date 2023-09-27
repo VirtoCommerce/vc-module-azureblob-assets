@@ -204,15 +204,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     await foreach (var blobPage in resultSegment)
                     {
                         // A hierarchical listing may return both virtual directories and blobs.
-                        foreach (var blobhierarchyItem in blobPage.Values)
+                        foreach (var blobHierarchyItem in blobPage.Values)
                         {
-                            if (blobhierarchyItem.IsPrefix)
+                            if (blobHierarchyItem.IsPrefix)
                             {
                                 var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
 
-                                folder.Name = GetOutlineFromUrl(blobhierarchyItem.Prefix).Last();
-                                folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobhierarchyItem.Prefix));
-                                folder.ParentUrl = GetParentUrl(baseUriEscaped, blobhierarchyItem.Prefix);
+                                folder.Name = GetOutlineFromUrl(blobHierarchyItem.Prefix).Last();
+                                folder.Url = UrlHelperExtensions.Combine(baseUriEscaped, EscapeUri(blobHierarchyItem.Prefix));
+                                folder.ParentUrl = GetParentUrl(baseUriEscaped, blobHierarchyItem.Prefix);
                                 folder.RelativeUrl = folder.Url.Replace(_blobServiceClient.Uri.AbsoluteUri.TrimEnd(Delimiter[0]), string.Empty);
                                 folder.CreatedDate = containerProperties.Value.LastModified.UtcDateTime;
                                 folder.ModifiedDate = containerProperties.Value.LastModified.UtcDateTime;
@@ -220,7 +220,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                             }
                             else
                             {
-                                var blobInfo = ConvertBlobToBlobInfo(blobhierarchyItem.Blob, baseUriEscaped);
+                                var blobInfo = ConvertBlobToBlobInfo(blobHierarchyItem.Blob, baseUriEscaped);
                                 //Do not return empty blob (created with directory because azure blob not support direct directory creation)
                                 if (!string.IsNullOrEmpty(blobInfo.Name))
                                 {
