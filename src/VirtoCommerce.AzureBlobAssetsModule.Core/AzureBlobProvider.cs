@@ -57,7 +57,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public virtual async Task<BlobInfo> GetBlobInfoAsync(string blobUrl)
         {
             if (string.IsNullOrEmpty(blobUrl))
+            {
                 throw new ArgumentNullException(nameof(blobUrl));
+            }
 
             var uri = blobUrl.IsAbsoluteUrl() ? new Uri(blobUrl) : new Uri(_blobServiceClient.Uri, blobUrl.TrimStart(Delimiter[0]));
             BlobInfo result = null;
@@ -295,7 +297,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         protected virtual async Task MoveAsync(string oldUrl, string newUrl, bool isCopy = false)
         {
-            string oldPath, newPath;
+            string oldPath;
+            string newPath;
             var isFolderRename = string.IsNullOrEmpty(Path.GetFileName(oldUrl));
 
             var containerName = GetContainerNameFromUrl(oldUrl);
