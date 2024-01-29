@@ -26,11 +26,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private const string Delimiter = "/";
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _cdnUrl;
+        private readonly bool _allowBlobPublicAccess;
 
         public AzureBlobProvider(IOptions<AzureBlobOptions> options, IOptions<PlatformOptions> platformOptions, ISettingsManager settingsManager) : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
+            _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
         }
 
         #region ICommonBlobProvider members
@@ -125,9 +127,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new PlatformException($"This extension is not allowed. Please contact administrator.");
             }
 
-            var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
-            await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
-
+            var container = await CreateContainerIfNotExists(blobUrl);
             var blob = container.GetBlockBlobClient(filePath);
 
             var options = new BlockBlobOpenWriteOptions
@@ -261,9 +261,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                         folder.Name :
                         UrlHelperExtensions.Combine(folder.ParentUrl, folder.Name);
 
-            var containerName = GetContainerNameFromUrl(path);
-            var container = _blobServiceClient.GetBlobContainerClient(containerName);
-            await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            var container = await CreateContainerIfNotExists(path);
 
             var directoryPath = GetDirectoryPathFromUrl(path);
             if (!string.IsNullOrEmpty(directoryPath))
@@ -394,6 +392,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         }
 
         #endregion IBlobUrlResolver Members
+
+        private async Task<BlobContainerClient> CreateContainerIfNotExists(string blobUrl)
+        {
+            var containerName = GetContainerNameFromUrl(blobUrl);
+            var container = _blobServiceClient.GetBlobContainerClient(containerName);
+
+            if (!await container.ExistsAsync())
+            {
+                var accessType = _allowBlobPublicAccess ? PublicAccessType.Blob : PublicAccessType.None;
+                await container.CreateAsync(accessType);
+            }
+
+            return container;
+        }
 
         /// <summary>
         /// Return outline folder from absolute or relative URL
