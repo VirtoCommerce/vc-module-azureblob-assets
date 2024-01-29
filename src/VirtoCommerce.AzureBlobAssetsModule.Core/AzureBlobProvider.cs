@@ -28,7 +28,11 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private readonly string _cdnUrl;
         private readonly bool _allowBlobPublicAccess;
 
-        public AzureBlobProvider(IOptions<AzureBlobOptions> options, IOptions<PlatformOptions> platformOptions, ISettingsManager settingsManager) : base(platformOptions, settingsManager)
+        public AzureBlobProvider(
+            IOptions<AzureBlobOptions> options,
+            IOptions<PlatformOptions> platformOptions,
+            ISettingsManager settingsManager)
+            : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
@@ -467,7 +471,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 return uri.AbsoluteUri;
             }
 
-            var parts = stringToEscape.Split(new[] { Delimiter[0] });
+            var parts = stringToEscape.Split(Delimiter[0]);
             return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
         }
 
