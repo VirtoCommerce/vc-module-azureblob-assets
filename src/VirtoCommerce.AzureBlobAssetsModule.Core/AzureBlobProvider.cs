@@ -67,11 +67,11 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var uri = blobUrl.IsAbsoluteUrl() ? new Uri(blobUrl) : new Uri(_blobServiceClient.Uri, blobUrl.TrimStart(Delimiter[0]));
             BlobInfo result = null;
             try
             {
-                var blob = new BlobClient(new Uri(_blobServiceClient.Uri, uri.AbsolutePath.TrimStart('/')));
+                var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
+                var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
                 var props = await blob.GetPropertiesAsync();
                 result = ConvertBlobToBlobInfo(blob, props.Value);
             }
@@ -488,7 +488,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return result;
         }
 
-        private BlobInfo ConvertBlobToBlobInfo(BlobClient blob, BlobProperties props)
+        private BlobInfo ConvertBlobToBlobInfo(BlobBaseClient blob, BlobProperties props)
         {
             var absoluteUrl = blob.Uri;
             var relativeUrl = Delimiter + UrlHelperExtensions.Combine(GetContainerNameFromUrl(blob.Uri.AbsoluteUri), EscapeUri(blob.Name));
