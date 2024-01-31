@@ -471,8 +471,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         private BlockBlobClient GetBlockBlobClient(string blobUrl)
         {
+            var filePath = GetFilePathFromUrl(blobUrl);
             var container = GetBlobContainerClient(blobUrl);
-            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+            var blob = container.GetBlockBlobClient(filePath);
 
             return blob;
         }
