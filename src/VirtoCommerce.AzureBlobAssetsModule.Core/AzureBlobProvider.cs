@@ -129,7 +129,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
 
-            var blob = GetBlockBlobClient(blobUrl);
+            var container = await CreateContainerIfNotExists(blobUrl);
+            var blob = container.GetBlockBlobClient(filePath);
 
             var options = new BlockBlobOpenWriteOptions
             {
