@@ -70,8 +70,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             BlobInfo result = null;
             try
             {
-                var container = GetBlobContainerClient(blobUrl);
-                var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+                var blob = GetBlockBlobClient(blobUrl);
                 var props = await blob.GetPropertiesAsync();
                 result = ConvertBlobToBlobInfo(blob, props.Value);
             }
@@ -101,8 +100,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var container = GetBlobContainerClient(blobUrl);
-            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+            var blob = GetBlockBlobClient(blobUrl);
 
             return blob.OpenReadAsync();
         }
@@ -131,8 +129,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
 
-            var container = await CreateContainerIfNotExists(blobUrl);
-            var blob = container.GetBlockBlobClient(filePath);
+            var blob = GetBlockBlobClient(blobUrl);
 
             var options = new BlockBlobOpenWriteOptions
             {
@@ -470,6 +467,14 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             var parts = stringToEscape.Split(Delimiter[0]);
             return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
+        }
+
+        private BlockBlobClient GetBlockBlobClient(string blobUrl)
+        {
+            var container = GetBlobContainerClient(blobUrl);
+            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+
+            return blob;
         }
 
         private BlobContainerClient GetBlobContainerClient(string blobUrl)
