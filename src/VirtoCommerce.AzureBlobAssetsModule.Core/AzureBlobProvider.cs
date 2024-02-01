@@ -26,11 +26,17 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private const string Delimiter = "/";
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _cdnUrl;
+        private readonly bool _allowBlobPublicAccess;
 
-        public AzureBlobProvider(IOptions<AzureBlobOptions> options, IOptions<PlatformOptions> platformOptions, ISettingsManager settingsManager) : base(platformOptions, settingsManager)
+        public AzureBlobProvider(
+            IOptions<AzureBlobOptions> options,
+            IOptions<PlatformOptions> platformOptions,
+            ISettingsManager settingsManager)
+            : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
+            _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
         }
 
         #region ICommonBlobProvider members
@@ -61,11 +67,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var uri = blobUrl.IsAbsoluteUrl() ? new Uri(blobUrl) : new Uri(_blobServiceClient.Uri, blobUrl.TrimStart(Delimiter[0]));
             BlobInfo result = null;
             try
             {
-                var blob = new BlobClient(new Uri(_blobServiceClient.Uri, uri.AbsolutePath.TrimStart('/')));
+                var blob = GetBlockBlobClient(blobUrl);
                 var props = await blob.GetPropertiesAsync();
                 result = ConvertBlobToBlobInfo(blob, props.Value);
             }
@@ -95,8 +100,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentNullException(nameof(blobUrl));
             }
 
-            var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
-            var blob = container.GetBlockBlobClient(GetFilePathFromUrl(blobUrl));
+            var blob = GetBlockBlobClient(blobUrl);
 
             return blob.OpenReadAsync();
         }
@@ -117,17 +121,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             if (filePath == null)
             {
-                throw new ArgumentException(@"Cannot get file path from URL", nameof(blobUrl));
+                throw new ArgumentException("Cannot get file path from URL", nameof(blobUrl));
             }
 
             if (IsExtensionBlacklisted(filePath))
             {
-                throw new PlatformException($"This extension is not allowed. Please contact administrator.");
+                throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
 
-            var container = _blobServiceClient.GetBlobContainerClient(GetContainerNameFromUrl(blobUrl));
-            await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
-
+            var container = await CreateContainerIfNotExists(blobUrl);
             var blob = container.GetBlockBlobClient(filePath);
 
             var options = new BlockBlobOpenWriteOptions
@@ -156,7 +158,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 var absoluteUri = url.IsAbsoluteUrl()
                     ? new Uri(url).ToString()
                     : UrlHelperExtensions.Combine(_blobServiceClient.Uri.ToString(), url);
-                var blobContainer = GetBlobContainer(GetContainerNameFromUrl(absoluteUri));
+                var container = GetBlobContainerClient(absoluteUri);
 
                 var isFolder = string.IsNullOrEmpty(Path.GetFileName(absoluteUri));
                 var blobSearchPrefix = isFolder ? GetDirectoryPathFromUrl(absoluteUri)
@@ -164,14 +166,14 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
                 if (string.IsNullOrEmpty(blobSearchPrefix))
                 {
-                    await blobContainer.DeleteIfExistsAsync();
+                    await container.DeleteIfExistsAsync();
                 }
                 else
                 {
-                    var blobItems = blobContainer.GetBlobsAsync(prefix: blobSearchPrefix);
+                    var blobItems = container.GetBlobsAsync(prefix: blobSearchPrefix);
                     await foreach (var blobItem in blobItems)
                     {
-                        var blobClient = blobContainer.GetBlobClient(blobItem.Name);
+                        var blobClient = container.GetBlobClient(blobItem.Name);
                         await blobClient.DeleteIfExistsAsync();
                     }
                 }
@@ -184,9 +186,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             if (!string.IsNullOrEmpty(folderUrl))
             {
-                var container = GetBlobContainer(GetContainerNameFromUrl(folderUrl));
+                var container = GetBlobContainerClient(folderUrl);
 
-                if (container != null)
+                if (await container.ExistsAsync())
                 {
                     var baseUriEscaped = container.Uri.AbsoluteUri; // absoluteUri is escaped already
                     var prefix = GetDirectoryPathFromUrl(folderUrl);
@@ -261,15 +263,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                         folder.Name :
                         UrlHelperExtensions.Combine(folder.ParentUrl, folder.Name);
 
-            var containerName = GetContainerNameFromUrl(path);
-            var container = _blobServiceClient.GetBlobContainerClient(containerName);
-            await container.CreateIfNotExistsAsync(PublicAccessType.Blob);
+            var container = await CreateContainerIfNotExists(path);
 
             var directoryPath = GetDirectoryPathFromUrl(path);
             if (!string.IsNullOrEmpty(directoryPath))
             {
                 //Need upload empty blob because azure blob storage not support direct directory creation
-                using var stream = new MemoryStream(new byte[0]);
+                using var stream = new MemoryStream(Array.Empty<byte>());
                 var keepFile = string.Join(Delimiter, directoryPath.TrimEnd(Delimiter[0]), ".keep");
                 await container.GetBlockBlobClient(keepFile).UploadAsync(stream);
             }
@@ -301,8 +301,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             string newPath;
             var isFolderRename = string.IsNullOrEmpty(Path.GetFileName(oldUrl));
 
-            var containerName = GetContainerNameFromUrl(oldUrl);
-
             //if rename file
             if (!isFolderRename)
             {
@@ -316,15 +314,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             var taskList = new List<Task>();
-            var blobContainer = _blobServiceClient.GetBlobContainerClient(containerName);
-            var blobItems = blobContainer.GetBlobsAsync(prefix: oldPath);
+            var container = GetBlobContainerClient(oldUrl);
+            var blobItems = container.GetBlobsAsync(prefix: oldPath);
 
             await foreach (var blobItem in blobItems)
             {
-                var blobName = UrlHelperExtensions.Combine(containerName, blobItem.Name);
+                var blobName = UrlHelperExtensions.Combine(container.Name, blobItem.Name);
                 var newBlobName = blobName.Replace(oldPath, newPath);
 
-                taskList.Add(MoveBlob(blobContainer, blobName, newBlobName, isCopy));
+                taskList.Add(MoveBlob(container, blobName, newBlobName, isCopy));
             }
 
             await Task.WhenAll(taskList);
@@ -345,22 +343,22 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             if (IsExtensionBlacklisted(targetPath))
             {
-                throw new PlatformException($"This extension is not allowed. Please contact administrator.");
+                throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
 
             var target = container.GetBlockBlobClient(targetPath);
 
             if (!await target.ExistsAsync())
             {
-                var soursePath = oldUrl.EndsWith(Delimiter)
+                var sourcePath = oldUrl.EndsWith(Delimiter)
                     ? GetDirectoryPathFromUrl(oldUrl)
                     : GetFilePathFromUrl(oldUrl);
 
-                var sourceBlob = container.GetBlockBlobClient(soursePath);
+                var sourceBlob = container.GetBlockBlobClient(sourcePath);
 
                 if (await sourceBlob.ExistsAsync())
                 {
-                    await target.StartCopyFromUri(sourceBlob.Uri).WaitForCompletionAsync();
+                    await (await target.StartCopyFromUriAsync(sourceBlob.Uri)).WaitForCompletionAsync();
 
                     if (!isCopy)
                     {
@@ -395,6 +393,19 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #endregion IBlobUrlResolver Members
 
+        private async Task<BlobContainerClient> CreateContainerIfNotExists(string blobUrl)
+        {
+            var container = GetBlobContainerClient(blobUrl);
+
+            if (!await container.ExistsAsync())
+            {
+                var accessType = _allowBlobPublicAccess ? PublicAccessType.Blob : PublicAccessType.None;
+                await container.CreateAsync(accessType);
+            }
+
+            return container;
+        }
+
         /// <summary>
         /// Return outline folder from absolute or relative URL
         /// </summary>
@@ -420,7 +431,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
             relativeUrl = relativeUrl[start..^end];
 
-            return relativeUrl.Split(new[] { Delimiter[0], '\\' }); // name may be empty
+            return relativeUrl.Split(Delimiter[0], '\\'); // name may be empty
         }
 
         private string GetContainerNameFromUrl(string url)
@@ -455,24 +466,28 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 return uri.AbsoluteUri;
             }
 
-            var parts = stringToEscape.Split(new[] { Delimiter[0] });
+            var parts = stringToEscape.Split(Delimiter[0]);
             return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
         }
 
-        private BlobContainerClient GetBlobContainer(string name)
+        private BlockBlobClient GetBlockBlobClient(string blobUrl)
         {
-            BlobContainerClient result = null;
-            // Retrieve container reference.
-            var container = _blobServiceClient.GetBlobContainerClient(name);
-            if (container.Exists())
-            {
-                result = container;
-            }
+            var filePath = GetFilePathFromUrl(blobUrl);
+            var container = GetBlobContainerClient(blobUrl);
+            var blob = container.GetBlockBlobClient(filePath);
 
-            return result;
+            return blob;
         }
 
-        private BlobInfo ConvertBlobToBlobInfo(BlobClient blob, BlobProperties props)
+        private BlobContainerClient GetBlobContainerClient(string blobUrl)
+        {
+            var containerName = GetContainerNameFromUrl(blobUrl);
+            var container = _blobServiceClient.GetBlobContainerClient(containerName);
+
+            return container;
+        }
+
+        private BlobInfo ConvertBlobToBlobInfo(BlobBaseClient blob, BlobProperties props)
         {
             var absoluteUrl = blob.Uri;
             var relativeUrl = Delimiter + UrlHelperExtensions.Combine(GetContainerNameFromUrl(blob.Uri.AbsoluteUri), EscapeUri(blob.Name));
@@ -504,7 +519,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 Name = fileName,
                 ContentType = contentType,
                 Size = blob.Properties.ContentLength ?? 0,
-                CreatedDate = blob.Properties.CreatedOn.Value.UtcDateTime,
+                CreatedDate = blob.Properties.CreatedOn!.Value.UtcDateTime,
                 ModifiedDate = blob.Properties.LastModified?.UtcDateTime,
                 RelativeUrl = relativeUrl
             };
