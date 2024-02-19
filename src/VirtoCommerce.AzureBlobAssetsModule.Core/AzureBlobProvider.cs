@@ -1,17 +1,21 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Blobs.Specialized;
-using Microsoft.Extensions.Options;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Events;
+using VirtoCommerce.AssetsModule.Core.Model;
+using VirtoCommerce.AssetsModule.Core.Services;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Extensions;
 using VirtoCommerce.Platform.Core.Settings;
@@ -27,16 +31,19 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _cdnUrl;
         private readonly bool _allowBlobPublicAccess;
+        private readonly IEventPublisher _eventPublisher;
 
         public AzureBlobProvider(
             IOptions<AzureBlobOptions> options,
             IOptions<PlatformOptions> platformOptions,
-            ISettingsManager settingsManager)
+            ISettingsManager settingsManager,
+            IEventPublisher eventPublisher)
             : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
+            _eventPublisher = eventPublisher;
         }
 
         #region ICommonBlobProvider members
@@ -148,12 +155,22 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             // FlushLessStream wraps BlockBlobWriteStream to not use Flush multiple times.
             // !!! Call Flush several times on a plain BlockBlobWriteStream causes stream hangs/errors.
             // https://github.com/Azure/azure-sdk-for-net/issues/20652
-            return new FlushLessStream(await blob.OpenWriteAsync(true, options));
+            return new BlobUploadStream(ProviderName, blobUrl, _eventPublisher,
+                new FlushLessStream(await blob.OpenWriteAsync(true, options)));
         }
 
         public virtual async Task RemoveAsync(string[] urls)
         {
-            foreach (var url in urls.Where(x => !string.IsNullOrWhiteSpace(x)))
+            ArgumentNullException.ThrowIfNull(urls);
+
+            var urlsToDelete = urls.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+
+            if (urlsToDelete.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var url in urlsToDelete)
             {
                 var absoluteUri = url.IsAbsoluteUrl()
                     ? new Uri(url).ToString()
@@ -178,6 +195,26 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     }
                 }
             }
+
+            await RaiseBlobDeteledEvent(urlsToDelete);
+        }
+
+        protected virtual Task RaiseBlobDeteledEvent(string[] urls)
+        {
+            if (_eventPublisher != null)
+            {
+                var events = urls.Select(url =>
+                new GenericChangedEntry<BlobEventInfo>(new BlobEventInfo
+                {
+                    Id = url,
+                    Uri = url,
+                    Provider = ProviderName
+                }, EntryState.Deleted)).ToArray();
+
+                return _eventPublisher.Publish(new BlobCreatedEvent(events));
+            }
+
+            return Task.CompletedTask;
         }
 
         public virtual async Task<BlobEntrySearchResult> SearchAsync(string folderUrl, string keyword)

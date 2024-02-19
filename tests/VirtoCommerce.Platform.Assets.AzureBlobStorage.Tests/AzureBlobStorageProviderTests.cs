@@ -26,7 +26,7 @@ namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests
         public void StreamWritePermissionsTest()
         {
             // Arrange
-            var provider = new AzureBlobProvider(_options, new OptionsWrapper<PlatformOptions>(new PlatformOptions()), null);
+            var provider = new AzureBlobProvider(_options, new OptionsWrapper<PlatformOptions>(new PlatformOptions()), null, null);
             var fileName = "file-write.tmp";
             var fileUrl = $"tmpfolder/{fileName}";
 
