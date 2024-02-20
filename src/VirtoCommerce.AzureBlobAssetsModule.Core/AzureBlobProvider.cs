@@ -1,13 +1,13 @@
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Blobs.Specialized;
-using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
+using Microsoft.Extensions.Options;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Events;
@@ -129,8 +129,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentException("Cannot get file path from URL", nameof(blobUrl));
             }
 
-            var isAllowed = await _fileExtensionService.IsExtensionAllowedAsync(filePath);
-            if (!isAllowed)
+            if (!await _fileExtensionService.IsExtensionAllowedAsync(filePath))
             {
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
@@ -151,11 +150,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 }
             };
 
-            // FlushLessStream wraps BlockBlobWriteStream to not use Flush multiple times.
+            // BlobUploadStream wraps BlockBlobWriteStream to not use Flush multiple times.
             // !!! Call Flush several times on a plain BlockBlobWriteStream causes stream hangs/errors.
             // https://github.com/Azure/azure-sdk-for-net/issues/20652
-            return new BlobUploadStream(ProviderName, blobUrl, _eventPublisher,
-                new FlushLessStream(await blob.OpenWriteAsync(true, options)));
+            return new BlobUploadStream(new FlushLessStream(await blob.OpenWriteAsync(true, options)), blobUrl, ProviderName, _eventPublisher);
         }
 
         public virtual async Task RemoveAsync(string[] urls)
@@ -195,10 +193,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 }
             }
 
-            await RaiseBlobDeteledEvent(urlsToDelete);
+            await RaiseBlobDeletedEvent(urlsToDelete);
         }
 
-        protected virtual Task RaiseBlobDeteledEvent(string[] urls)
+        protected virtual Task RaiseBlobDeletedEvent(string[] urls)
         {
             if (_eventPublisher != null)
             {
@@ -377,8 +375,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 ? GetDirectoryPathFromUrl(newUrl)
                 : GetFilePathFromUrl(newUrl);
 
-            var isAllowed = await _fileExtensionService.IsExtensionAllowedAsync(targetPath);
-            if (!isAllowed)
+            if (!await _fileExtensionService.IsExtensionAllowedAsync(targetPath))
             {
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
