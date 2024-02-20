@@ -24,9 +24,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
         private const string Delimiter = "/";
         private readonly BlobServiceClient _blobServiceClient;
-        private readonly IFileExtensionService _fileExtensionService;
         private readonly string _cdnUrl;
         private readonly bool _allowBlobPublicAccess;
+        private readonly IFileExtensionService _fileExtensionService;
 
         public AzureBlobProvider(
             IOptions<AzureBlobOptions> options,
@@ -442,79 +442,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
         }
 
-        private static Uri GetAbsoluteUri(string baseUri, string blobPrefix, string query = null)
-        {
-            // If the baseUri has relative parts (like /api), then the relative part must be terminated with a slash, (like /api/),
-            // if the relative part of baseUri is to be preserved in the constructed Uri.
-            // Additionally, if the relativeUri begins with a slash, then it will replace any relative part of the baseUri.
-            if (!baseUri.EndsWith(Delimiter))
-            {
-                baseUri += Delimiter;
-            }
-            if (blobPrefix.StartsWith(Delimiter))
-            {
-                blobPrefix = blobPrefix[1..];
-            }
-            var uri = new Uri(new Uri(baseUri), EscapeUri(blobPrefix));
-            if (string.IsNullOrEmpty(query))
-            {
-                return uri;
-            }
-            
-            var builder = new UriBuilder(uri)
-            {
-                Query = query,
-            };
-            return builder.Uri;
-        }
-
-        private static Uri GetAbsoluteUri(Uri baseUri, string blobPrefix)
-        {
-            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
-            var baseUriQuery = baseUri.Query;
-            return GetAbsoluteUri(baseUriString, blobPrefix, baseUriQuery);
-        }
-
-        private static string GetAbsoluteUrl(Uri baseUri, string blobPrefix)
-        {
-            return GetAbsoluteUri(baseUri, blobPrefix).AbsoluteUri;
-        }
-
-        private static string GetParentUrl(string baseUri, string blobPrefix, string query = null)
-        {
-            var segments = GetOutlineFromUrl(blobPrefix);
-            var parentPath = string.Join(Delimiter, segments.Take(segments.Length - 1));
-            return GetAbsoluteUri(baseUri, parentPath, query).AbsoluteUri;
-        }
-
-        private static string GetParentUrl(Uri baseUri, string blobPrefix)
-        {
-            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
-            var baseUriQuery = baseUri.Query;
-            return GetParentUrl(baseUriString, blobPrefix, baseUriQuery);
-        }
-
-        private string GetRelativeUrl(Uri absoluteUri)
-        {
-            if (!string.IsNullOrEmpty(absoluteUri.Query))
-            {
-                absoluteUri = new Uri(absoluteUri.GetLeftPart(UriPartial.Path));
-            }
-            return _blobServiceClient.Uri.MakeRelativeUri(absoluteUri).ToString();
-        }
-
-        private static string EscapeUri(string stringToEscape)
-        {
-            var uri = new Uri(stringToEscape, UriKind.RelativeOrAbsolute);
-            if (uri.IsAbsoluteUri)
-            {
-                return uri.AbsoluteUri;
-            }
-
-            var parts = stringToEscape.Split(Delimiter[0]);
-            return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
-        }
-
         private BlockBlobClient GetBlockBlobClient(string blobUrl)
         {
             var filePath = GetFilePathFromUrl(blobUrl);
@@ -535,7 +462,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private BlobInfo ConvertToBlobInfo(BlobBaseClient blob, BlobProperties props)
         {
             var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
-            
+
             var absoluteUri = blob.Uri;
             var relativeUrl = GetRelativeUrl(absoluteUri);
             var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
@@ -554,7 +481,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private BlobInfo ConvertToBlobInfo(BlobItem blob, Uri baseUri)
         {
             var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
-            
+
             var absoluteUri = GetAbsoluteUri(baseUri, blob.Name);
             var relativeUrl = GetRelativeUrl(absoluteUri);
             var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
@@ -573,15 +500,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private BlobFolder ConvertToBlobFolder(BlobHierarchyItem blobHierarchyItem, Uri baseUri, BlobContainerProperties containerProperties)
         {
             var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
-            
+
             var absoluteUri = GetAbsoluteUri(baseUri, blobHierarchyItem.Prefix);
-            
+
             folder.Name = GetOutlineFromUrl(blobHierarchyItem.Prefix).Last();
             folder.Url = absoluteUri.AbsoluteUri;
             folder.ParentUrl = GetParentUrl(baseUri, blobHierarchyItem.Prefix);
             folder.RelativeUrl = GetRelativeUrl(absoluteUri);
             folder.ModifiedDate = folder.CreatedDate = containerProperties.LastModified.UtcDateTime;
-            
+
             return folder;
         }
 
@@ -591,13 +518,86 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             var baseUri = _blobServiceClient.Uri;
             var absoluteUri = GetAbsoluteUri(baseUri, container.Name);
-            
+
             folder.Name = container.Name.Split(Delimiter).Last();
             folder.Url = absoluteUri.AbsoluteUri;
             folder.RelativeUrl = GetRelativeUrl(absoluteUri);
             folder.ModifiedDate = folder.CreatedDate = container.Properties.LastModified.UtcDateTime;
-            
+
             return folder;
+        }
+
+        private static string GetParentUrl(Uri baseUri, string blobPrefix)
+        {
+            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
+            var baseUriQuery = baseUri.Query;
+            return GetParentUrl(baseUriString, blobPrefix, baseUriQuery);
+        }
+
+        private static string GetParentUrl(string baseUri, string blobPrefix, string query = null)
+        {
+            var segments = GetOutlineFromUrl(blobPrefix);
+            var parentPath = string.Join(Delimiter, segments.Take(segments.Length - 1));
+            return GetAbsoluteUri(baseUri, parentPath, query).AbsoluteUri;
+        }
+
+        private string GetRelativeUrl(Uri absoluteUri)
+        {
+            if (!string.IsNullOrEmpty(absoluteUri.Query))
+            {
+                absoluteUri = new Uri(absoluteUri.GetLeftPart(UriPartial.Path));
+            }
+            return _blobServiceClient.Uri.MakeRelativeUri(absoluteUri).ToString();
+        }
+
+        private static string GetAbsoluteUrl(Uri baseUri, string blobPrefix)
+        {
+            return GetAbsoluteUri(baseUri, blobPrefix).AbsoluteUri;
+        }
+
+        private static Uri GetAbsoluteUri(Uri baseUri, string blobPrefix)
+        {
+            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
+            var baseUriQuery = baseUri.Query;
+            return GetAbsoluteUri(baseUriString, blobPrefix, baseUriQuery);
+        }
+
+        private static Uri GetAbsoluteUri(string baseUri, string blobPrefix, string query = null)
+        {
+            // If the baseUri has relative parts (like /api), then the relative part must be terminated with a slash, (like /api/),
+            // if the relative part of baseUri is to be preserved in the constructed Uri.
+            // Additionally, if the relativeUri begins with a slash, then it will replace any relative part of the baseUri.
+            if (!baseUri.EndsWith(Delimiter))
+            {
+                baseUri += Delimiter;
+            }
+            if (blobPrefix.StartsWith(Delimiter))
+            {
+                blobPrefix = blobPrefix[1..];
+            }
+            var uri = new Uri(new Uri(baseUri), EscapeUri(blobPrefix));
+            if (string.IsNullOrEmpty(query))
+            {
+                return uri;
+            }
+
+            var builder = new UriBuilder(uri)
+            {
+                Query = query,
+            };
+            return builder.Uri;
+        }
+
+        private static string EscapeUri(string stringToEscape)
+        {
+            var uri = new Uri(stringToEscape, UriKind.RelativeOrAbsolute);
+            if (uri.IsAbsoluteUri)
+            {
+                return uri.AbsoluteUri;
+            }
+
+            var parts = stringToEscape.Split(Delimiter[0]);
+            return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
         }
     }
 }
