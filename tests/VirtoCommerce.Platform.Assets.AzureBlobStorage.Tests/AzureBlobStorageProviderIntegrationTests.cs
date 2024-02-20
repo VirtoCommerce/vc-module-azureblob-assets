@@ -2,10 +2,11 @@ using System.IO;
 using System.Threading.Tasks;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
+using VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
 using VirtoCommerce.Platform.Core.Common;
 using Xunit;
 
-namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
+namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
 
 [Trait("Category", "IntegrationTest")]
 [Collection("AzureBlobStorageProvider")]
@@ -145,7 +146,7 @@ public class AzureBlobStorageProviderIntegrationTests
             await writer.WriteAsync("""{"result":true}""");
         }
         var created = await _fixture.Provider.ExistsAsync(oldBlobUrl);
-        
+
         var copied = false;
         if (await _fixture.Provider.ExistsAsync(newBlobUrl))
         {
@@ -160,7 +161,7 @@ public class AzureBlobStorageProviderIntegrationTests
         // Assert
         Assert.True(created && copied);
     }
-        
+
     [Fact]
     public async Task Search_Should_ReturnNotEmptyCollection()
     {
@@ -173,7 +174,7 @@ public class AzureBlobStorageProviderIntegrationTests
         // Assert
         Assert.False(result?.Results.IsNullOrEmpty());
     }
-        
+
     [Fact]
     public async Task SearchContainers_Should_ReturnNotEmptyCollection()
     {
@@ -224,16 +225,16 @@ public class AzureBlobStorageProviderIntegrationTests
         Assert.True(created);
     }
 }
-    
+
 public class AzureBlobStorageProviderIntegrationTestSetup
 {
     public AzureBlobProvider Provider { get; }
-        
+
     public AzureBlobStorageProviderIntegrationTestSetup()
     {
         Provider = AppConfiguration.GetAzureBlobProvider();
     }
 }
-    
+
 [CollectionDefinition("AzureBlobStorageProvider")]
 public abstract class AzureBlobStorageProviderCollection : ICollectionFixture<AzureBlobStorageProviderIntegrationTestSetup>;
