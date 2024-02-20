@@ -13,17 +13,15 @@ using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Core.Model;
 using VirtoCommerce.AssetsModule.Core.Services;
-using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Extensions;
-using VirtoCommerce.Platform.Core.Settings;
 using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
-    public class AzureBlobProvider : BasicBlobProvider, IBlobStorageProvider, IBlobUrlResolver, ICommonBlobProvider
+    public class AzureBlobProvider : IBlobStorageProvider, IBlobUrlResolver, ICommonBlobProvider
     {
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
@@ -31,18 +29,18 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _cdnUrl;
         private readonly bool _allowBlobPublicAccess;
+        private readonly IFileExtensionService _fileExtensionService;
         private readonly IEventPublisher _eventPublisher;
 
         public AzureBlobProvider(
             IOptions<AzureBlobOptions> options,
-            IOptions<PlatformOptions> platformOptions,
-            ISettingsManager settingsManager,
+            IFileExtensionService fileExtensionService,
             IEventPublisher eventPublisher)
-            : base(platformOptions, settingsManager)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
             _cdnUrl = options.Value.CdnUrl;
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
+            _fileExtensionService = fileExtensionService;
             _eventPublisher = eventPublisher;
         }
 
@@ -131,7 +129,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 throw new ArgumentException("Cannot get file path from URL", nameof(blobUrl));
             }
 
-            if (IsExtensionBlacklisted(filePath))
+            var isAllowed = await _fileExtensionService.IsExtensionAllowedAsync(filePath);
+            if (!isAllowed)
             {
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
@@ -378,7 +377,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 ? GetDirectoryPathFromUrl(newUrl)
                 : GetFilePathFromUrl(newUrl);
 
-            if (IsExtensionBlacklisted(targetPath))
+            var isAllowed = await _fileExtensionService.IsExtensionAllowedAsync(targetPath);
+            if (!isAllowed)
             {
                 throw new PlatformException("This extension is not allowed. Please contact administrator.");
             }
