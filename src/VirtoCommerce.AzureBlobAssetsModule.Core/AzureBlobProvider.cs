@@ -150,7 +150,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 }
             };
 
-            // BlobUploadStream wraps BlockBlobWriteStream to not use Flush multiple times.
+            // BlobUploadStream wraps FlushLessStream to not use Flush multiple times.
             // !!! Call Flush several times on a plain BlockBlobWriteStream causes stream hangs/errors.
             // https://github.com/Azure/azure-sdk-for-net/issues/20652
             return new BlobUploadStream(new FlushLessStream(await blob.OpenWriteAsync(true, options)), blobUrl, ProviderName, _eventPublisher);
