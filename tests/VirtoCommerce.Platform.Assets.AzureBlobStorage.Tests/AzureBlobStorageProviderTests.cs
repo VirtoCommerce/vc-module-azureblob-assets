@@ -1,10 +1,10 @@
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Linq;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
 using Xunit;
 
-namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
+namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
 
 public class AzureBlobStorageProviderTests
 {

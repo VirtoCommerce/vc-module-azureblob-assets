@@ -6,7 +6,7 @@ using VirtoCommerce.AzureBlobAssetsModule.Core;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Settings;
 
-namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
+namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
 
 public class AppConfiguration
 {

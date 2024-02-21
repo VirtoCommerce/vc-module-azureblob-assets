@@ -2,7 +2,6 @@ using System.IO;
 using System.Threading.Tasks;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
-using VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
 using VirtoCommerce.Platform.Core.Common;
 using Xunit;
 
