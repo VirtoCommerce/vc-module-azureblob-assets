@@ -10,12 +10,12 @@ namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests;
 
 public class AppConfiguration
 {
-    public static IConfigurationRoot Configuration;
+    private static IConfigurationRoot _configuration;
 
     public AppConfiguration()
     {
         // Build configuration
-        Configuration = new ConfigurationBuilder()
+        _configuration = new ConfigurationBuilder()
             .AddUserSecrets<AppConfiguration>()
             .Build();
     }
@@ -24,11 +24,11 @@ public class AppConfiguration
         where T : new()
     {
         var result = new T();
-        Configuration.GetSection("Assets:AzureBlobStorage").Bind(result);
+        _configuration.GetSection("Assets:AzureBlobStorage").Bind(result);
 
         return result;
     }
-        
+
     public static AzureBlobProvider GetAzureBlobProvider()
     {
         var options = Options.Create(new AppConfiguration().GetApplicationConfiguration<AzureBlobOptions>());
@@ -41,7 +41,7 @@ public class AppConfiguration
         settingsManager.Setup(x => x.GetObjectSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(new ObjectSettingEntry { AllowedValues = [] });
         var fileExtensionService = new FileExtensionService(platformOptions, settingsManager.Object);
-            
+
         return new AzureBlobProvider(options, fileExtensionService);
     }
 }
