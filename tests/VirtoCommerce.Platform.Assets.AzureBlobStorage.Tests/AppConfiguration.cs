@@ -42,6 +42,7 @@ public class AppConfiguration
             .ReturnsAsync(new ObjectSettingEntry { AllowedValues = [] });
         var fileExtensionService = new FileExtensionService(platformOptions, settingsManager.Object);
 
-        return new AzureBlobProvider(options, fileExtensionService);
+
+        return new AzureBlobProvider(options, fileExtensionService, null);
     }
 }
