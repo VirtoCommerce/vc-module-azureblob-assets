@@ -12,13 +12,16 @@ Azure Blob Storage Assets module provide integration with [Azure Blob Storage](h
         "Provider": "AzureBlobStorage",
         "AzureBlobStorage": {
             "ConnectionString": "",
-            "CdnUrl": ""
+            "CdnUrl": "",
+            "AllowBlobPublicAccess": true
         }
     }
 ```
 3. Modify the following settings:
-    - Set the **Provider** value to **AzureBlobStorage**
-    - Provide **ConnectionString** in case you are going to use the **AzureBlobStorage** implementation option
+    - Set the **Provider** value to **AzureBlobStorage**.
+    - Provide **ConnectionString** in case you are going to use the **AzureBlobStorage** implementation option.
+    - Set up "CdnUrl": "" if you want to configured CDN before Azure Blob Storage. By default, empty. Ex: `https://cdn.somecloud.com`.
+    - Set up **AllowBlobPublicAccess** to `false`, if create private container by default. By default, `true`.
 
 ## Documentation
 * [Assets Module Documentation](https://virtocommerce.com/docs/latest/modules/assets/)
