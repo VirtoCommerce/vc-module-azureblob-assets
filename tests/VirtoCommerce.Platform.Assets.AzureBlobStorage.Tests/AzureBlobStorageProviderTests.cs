@@ -1,8 +1,9 @@
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Linq;
+using Moq;
+using VirtoCommerce.AssetsModule.Core.Services;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
-using VirtoCommerce.Platform.Core;
 using Xunit;
 
 namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests
@@ -25,8 +26,11 @@ namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests
         [Fact(Skip = "Test is broken on CI")]
         public void StreamWritePermissionsTest()
         {
+            var mockFileExtensionService = new Mock<IFileExtensionService>();
+            mockFileExtensionService.Setup(service => service.IsExtensionAllowedAsync(It.IsAny<string>())).ReturnsAsync(true);
+
             // Arrange
-            var provider = new AzureBlobProvider(_options, new OptionsWrapper<PlatformOptions>(new PlatformOptions()), null);
+            var provider = new AzureBlobProvider(_options, mockFileExtensionService.Object, null);
             var fileName = "file-write.tmp";
             var fileUrl = $"tmpfolder/{fileName}";
 

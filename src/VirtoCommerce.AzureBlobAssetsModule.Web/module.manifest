@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-    <id>VirtoCommerce.AzureBlobAssets</id>
-    <version>3.802.0</version>
-    <version-tag />
+  <id>VirtoCommerce.AzureBlobAssets</id>
+  <version>3.802.0</version>
+  <version-tag />
 
-    <platformVersion>3.800.0</platformVersion>
-    <dependencies>
-        <dependency id="VirtoCommerce.Assets" version="3.800.0" />
-    </dependencies>
+  <platformVersion>3.800.0</platformVersion>
+  <dependencies>
+    <dependency id="VirtoCommerce.Assets" version="3.802.0" />
+  </dependencies>
 
-    <title>Azure Blob Storage Assets Provider</title>
-    <description>Provide integration with Azure Blob Storage for Assets Management</description>
-    <authors>
-        <author>Virto Commerce</author>
-    </authors>
-    <owners>
-        <owner>Virto Commerce</owner>
-    </owners>
-    <projectUrl>https://virtocommerce.com/apps/extensions/vc-module-azureblob-assets</projectUrl>
-    <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.png</iconUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <releaseNotes />
-    <copyright>Copyright © 2024 Virto Commerce. All rights reserved</copyright>
-    <tags>assets</tags>
-    <assemblyFile>VirtoCommerce.AzureBlobAssetsModule.Web.dll</assemblyFile>
-    <moduleType>VirtoCommerce.AzureBlobAssetsModule.Web.Module, VirtoCommerce.AzureBlobAssetsModule.Web</moduleType>
-    <groups>
-        <group>commerce</group>
-    </groups>
-    <useFullTypeNameInSwagger>false</useFullTypeNameInSwagger>
+  <title>Azure Blob Storage Assets Provider</title>
+  <description>Provide integration with Azure Blob Storage for Assets Management</description>
+  <authors>
+    <author>Virto Commerce</author>
+  </authors>
+  <owners>
+    <owner>Virto Commerce</owner>
+  </owners>
+  <projectUrl>https://virtocommerce.com/apps/extensions/vc-module-azureblob-assets</projectUrl>
+  <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.png</iconUrl>
+  <requireLicenseAcceptance>false</requireLicenseAcceptance>
+  <releaseNotes />
+  <copyright>Copyright © 2024 Virto Commerce. All rights reserved</copyright>
+  <tags>assets</tags>
+  <assemblyFile>VirtoCommerce.AzureBlobAssetsModule.Web.dll</assemblyFile>
+  <moduleType>VirtoCommerce.AzureBlobAssetsModule.Web.Module, VirtoCommerce.AzureBlobAssetsModule.Web</moduleType>
+  <groups>
+    <group>commerce</group>
+  </groups>
+  <useFullTypeNameInSwagger>false</useFullTypeNameInSwagger>
 </module>
