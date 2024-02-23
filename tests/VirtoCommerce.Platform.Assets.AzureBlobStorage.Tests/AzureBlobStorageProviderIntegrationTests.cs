@@ -227,12 +227,7 @@ public class AzureBlobStorageProviderIntegrationTests
 
 public class AzureBlobStorageProviderIntegrationTestSetup
 {
-    public AzureBlobProvider Provider { get; }
-
-    public AzureBlobStorageProviderIntegrationTestSetup()
-    {
-        Provider = AppConfiguration.GetAzureBlobProvider();
-    }
+    public AzureBlobProvider Provider { get; } = AppConfiguration.GetAzureBlobProvider();
 }
 
 [CollectionDefinition("AzureBlobStorageProvider")]

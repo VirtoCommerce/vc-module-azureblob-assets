@@ -3,8 +3,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 using VirtoCommerce.AssetsModule.Core.Services;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
-using VirtoCommerce.Platform.Core;
-using VirtoCommerce.Platform.Core.Settings;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
 
@@ -32,17 +30,12 @@ public class AppConfiguration
     public static AzureBlobProvider GetAzureBlobProvider()
     {
         var options = Options.Create(new AppConfiguration().GetApplicationConfiguration<AzureBlobOptions>());
-        var platformOptions = Options.Create(new PlatformOptions
-        {
-            FileExtensionsBlackList = [],
-            FileExtensionsWhiteList = [],
-        });
-        var settingsManager = new Mock<ISettingsManager>();
-        settingsManager.Setup(x => x.GetObjectSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync(new ObjectSettingEntry { AllowedValues = [] });
-        var fileExtensionService = new FileExtensionService(platformOptions, settingsManager.Object);
 
+        var mockFileExtensionService = new Mock<IFileExtensionService>();
+        mockFileExtensionService
+            .Setup(service => service.IsExtensionAllowedAsync(It.IsAny<string>()))
+            .ReturnsAsync(true);
 
-        return new AzureBlobProvider(options, fileExtensionService, null);
+        return new AzureBlobProvider(options, mockFileExtensionService.Object, eventPublisher: null);
     }
 }
