@@ -582,7 +582,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 absoluteUri = new Uri(absoluteUri.GetLeftPart(UriPartial.Path));
             }
-            return _blobServiceClient.Uri.MakeRelativeUri(absoluteUri).ToString();
+            var result = _blobServiceClient.Uri.MakeRelativeUri(absoluteUri).ToString();
+
+            // Ensure the relative URL starts with a delimiter
+            if (!result.StartsWith(Delimiter))
+            {
+                result = Delimiter + result;
+            }
+
+            return result;
         }
 
         private static string GetAbsoluteUrl(Uri baseUri, string blobPrefix)

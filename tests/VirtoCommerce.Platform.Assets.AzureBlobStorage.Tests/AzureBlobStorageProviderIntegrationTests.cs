@@ -23,7 +23,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public void GetAbsoluteUrl_Should_ReturnUrl()
     {
         // Arrange
-        const string blobUrl = $"{ContainerName}/Catalog/result.json";
+        const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
         var uri = _fixture.Provider.GetAbsoluteUrl(blobUrl);
@@ -37,7 +37,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task GetBlobInfo_Should_ReturnSameRelative()
     {
         // Arrange
-        const string blobUrl = $"{ContainerName}/Catalog/result.json";
+        const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
         var blobInfo = await _fixture.Provider.GetBlobInfoAsync(blobUrl);
@@ -51,7 +51,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task OpenRead_Should_ReturnNotEmptyStream()
     {
         // Arrange
-        const string blobUrl = $"{ContainerName}/Catalog/result.json";
+        const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
         await using var stream = await _fixture.Provider.OpenReadAsync(blobUrl);
@@ -65,7 +65,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task OpenWrite_Should_ReturnWritableStream()
     {
         // Arrange
-        const string blobUrl = $"{ContainerName}/Catalog/temp.json";
+        const string blobUrl = $"/{ContainerName}/Catalog/temp.json";
 
         // Act
         await using var stream = await _fixture.Provider.OpenWriteAsync(blobUrl);
@@ -80,7 +80,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task Remove_Should_RemoveBlob()
     {
         // Arrange
-        const string blobUrl = $"{ContainerName}/Catalog/remove.json";
+        const string blobUrl = $"/{ContainerName}/Catalog/remove.json";
 
         // Act
         await using (var stream = await _fixture.Provider.OpenWriteAsync(blobUrl))
@@ -105,8 +105,8 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task Move_Should_MoveBlob()
     {
         // Arrange
-        const string oldBlobUrl = $"{ContainerName}/Catalog/move.json";
-        const string newBlobUrl = $"{ContainerName}/Catalog/MoveFolder/move.json";
+        const string oldBlobUrl = $"/{ContainerName}/Catalog/move.json";
+        const string newBlobUrl = $"/{ContainerName}/Catalog/MoveFolder/move.json";
 
         // Act
         await using (var stream = await _fixture.Provider.OpenWriteAsync(oldBlobUrl))
@@ -135,8 +135,8 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task Copy_Should_CopyBlob()
     {
         // Arrange
-        const string oldBlobUrl = $"{ContainerName}/Catalog/copy.json";
-        const string newBlobUrl = $"{ContainerName}/Catalog/CopyFolder/copy.json";
+        const string oldBlobUrl = $"/{ContainerName}/Catalog/copy.json";
+        const string newBlobUrl = $"/{ContainerName}/Catalog/CopyFolder/copy.json";
 
         // Act
         await using (var stream = await _fixture.Provider.OpenWriteAsync(oldBlobUrl))
@@ -165,7 +165,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task Search_Should_ReturnNotEmptyCollection()
     {
         // Arrange
-        const string folderUrl = $"{ContainerName}/Catalog";
+        const string folderUrl = $"/{ContainerName}/Catalog";
 
         // Act
         var result = await _fixture.Provider.SearchAsync(folderUrl, null);
@@ -191,7 +191,7 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task CreateFolder_Should_CreateWithoutParent()
     {
         // Arrange
-        const string folderUrl = $"{ContainerName}/Catalog/NewFolder";
+        const string folderUrl = $"/{ContainerName}/Catalog/NewFolder";
         var folder = new BlobFolder
         {
             Name = folderUrl,
@@ -209,11 +209,11 @@ public class AzureBlobStorageProviderIntegrationTests
     public async Task CreateFolder_Should_CreateWithParent()
     {
         // Arrange
-        const string folderUrl = $"{ContainerName}/Catalog/SubFolder";
+        const string folderUrl = $"/{ContainerName}/Catalog/SubFolder";
         var folder = new BlobFolder
         {
             Name = "SubFolder",
-            ParentUrl = $"{ContainerName}/Catalog",
+            ParentUrl = $"/{ContainerName}/Catalog",
         };
 
         // Act
