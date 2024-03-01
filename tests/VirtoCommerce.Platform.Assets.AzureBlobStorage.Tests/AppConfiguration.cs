@@ -1,26 +1,41 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Moq;
+using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.AzureBlobAssetsModule.Core;
 
-namespace VirtoCommerce.Platform.Assets.AzureBlobStorage.Tests
+namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
+
+public class AppConfiguration
 {
-    public class AppConfiguration
+    private static IConfigurationRoot _configuration;
+
+    public AppConfiguration()
     {
-        public static IConfigurationRoot configuration;
+        // Build configuration
+        _configuration = new ConfigurationBuilder()
+            .AddUserSecrets<AppConfiguration>()
+            .Build();
+    }
 
-        public AppConfiguration()
-        {
-            // Build configuration
-            configuration = new ConfigurationBuilder()
-                .AddUserSecrets<AppConfiguration>()
-                .Build();
-        }
+    public T GetApplicationConfiguration<T>()
+        where T : new()
+    {
+        var result = new T();
+        _configuration.GetSection("Assets:AzureBlobStorage").Bind(result);
 
-        public T GetApplicationConfiguration<T>()
-            where T : new()
-        {
-            var result = new T();
-            configuration.GetSection("Assets:AzureBlobStorage").Bind(result);
+        return result;
+    }
 
-            return result;
-        }
+    public static AzureBlobProvider GetAzureBlobProvider()
+    {
+        var options = Options.Create(new AppConfiguration().GetApplicationConfiguration<AzureBlobOptions>());
+
+        var mockFileExtensionService = new Mock<IFileExtensionService>();
+        mockFileExtensionService
+            .Setup(service => service.IsExtensionAllowedAsync(It.IsAny<string>()))
+            .ReturnsAsync(true);
+
+        return new AzureBlobProvider(options, mockFileExtensionService.Object, eventPublisher: null);
     }
 }
