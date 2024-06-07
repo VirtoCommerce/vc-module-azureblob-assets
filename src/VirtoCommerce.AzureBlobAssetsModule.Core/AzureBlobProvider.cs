@@ -189,6 +189,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     var blobItems = container.GetBlobsAsync(prefix: blobSearchPrefix);
                     await foreach (var blobItem in blobItems)
                     {
+                        if (blobItem.Name != blobSearchPrefix)
+                        {
+                            continue;
+                        }
                         var blobClient = container.GetBlobClient(blobItem.Name);
                         await blobClient.DeleteIfExistsAsync();
                     }
