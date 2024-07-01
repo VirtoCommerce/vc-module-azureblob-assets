@@ -169,9 +169,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             foreach (var url in urlsToDelete)
             {
-                var uri = url.IsAbsoluteUrl()
-                    ? new Uri(url)
-                    : GetAbsoluteUri(_blobServiceClient.Uri, url);
+                var uri = GetAbsoluteUri(_blobServiceClient.Uri, url);
                 var absoluteUri = uri.AbsoluteUri;
                 var container = GetBlobContainerClient(absoluteUri);
 
@@ -403,22 +401,18 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #region IBlobUrlResolver Members
 
-        public string GetAbsoluteUrl(string blobKey)
+        public string GetAbsoluteUrl(string inputUrl)
         {
-            var result = blobKey;
-            if (!blobKey.IsAbsoluteUrl())
-            {
-                var baseUri = _blobServiceClient.Uri;
-                if (!string.IsNullOrWhiteSpace(_cdnUrl))
-                {
-                    var cdnUriBuilder = new UriBuilder(_blobServiceClient.Uri.Scheme, _cdnUrl);
-                    baseUri = cdnUriBuilder.Uri;
-                }
+            ArgumentNullException.ThrowIfNull(nameof(inputUrl));
 
-                result = GetAbsoluteUrl(baseUri, blobKey);
+            var baseUri = _blobServiceClient.Uri;
+            if (!string.IsNullOrWhiteSpace(_cdnUrl))
+            {
+                var cdnUriBuilder = new UriBuilder(_blobServiceClient.Uri.Scheme, _cdnUrl);
+                baseUri = cdnUriBuilder.Uri;
             }
 
-            return result;
+            return GetAbsoluteUri(baseUri, inputUrl).AbsoluteUri;
         }
 
         #endregion IBlobUrlResolver Members
@@ -577,7 +571,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             var segments = GetOutlineFromUrl(blobPrefix);
             var parentPath = string.Join(Delimiter, segments.Take(segments.Length - 1));
-            return GetAbsoluteUri(baseUri, parentPath, query).AbsoluteUri;
+            return GetAbsoluteUri(new Uri(baseUri), parentPath, query).AbsoluteUri;
         }
 
         private string GetRelativeUrl(Uri absoluteUri)
@@ -597,54 +591,51 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return result;
         }
 
-        private static string GetAbsoluteUrl(Uri baseUri, string blobPrefix)
+        private static Uri GetAbsoluteUri(Uri baseUri, string inputUrl, string query)
         {
-            return GetAbsoluteUri(baseUri, blobPrefix).AbsoluteUri;
+            var result = GetAbsoluteUri(baseUri, inputUrl);
+
+            if (!string.IsNullOrEmpty(query))
+            {
+                if (string.IsNullOrEmpty(query))
+                {
+                    return result;
+                }
+
+                var builder = new UriBuilder(result)
+                {
+                    Query = query,
+                };
+                return builder.Uri;
+            }
+
+            return result;
         }
 
-        private static Uri GetAbsoluteUri(Uri baseUri, string blobPrefix)
+        private static Uri GetAbsoluteUri(Uri baseUri, string inputUrl)
         {
-            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
-            var baseUriQuery = baseUri.Query;
-            return GetAbsoluteUri(baseUriString, blobPrefix, baseUriQuery);
-        }
-
-        private static Uri GetAbsoluteUri(string baseUri, string blobPrefix, string query = null)
-        {
-            // If the baseUri has relative parts (like /api), then the relative part must be terminated with a slash, (like /api/),
-            // if the relative part of baseUri is to be preserved in the constructed Uri.
-            // Additionally, if the relativeUri begins with a slash, then it will replace any relative part of the baseUri.
-            if (!baseUri.EndsWith(Delimiter))
+            if (Uri.TryCreate(inputUrl, UriKind.Absolute, out var resultUri))
             {
-                baseUri += Delimiter;
-            }
-            if (blobPrefix.StartsWith(Delimiter))
-            {
-                blobPrefix = blobPrefix[1..];
-            }
-            var uri = new Uri(new Uri(baseUri), EscapeUri(blobPrefix));
-            if (string.IsNullOrEmpty(query))
-            {
-                return uri;
+                // If the input URL is already absolute, return it as is (with correct encoding)
+                return resultUri;
             }
 
-            var builder = new UriBuilder(uri)
+            if (inputUrl.StartsWith('/'))
             {
-                Query = query,
-            };
-            return builder.Uri;
-        }
-
-        private static string EscapeUri(string stringToEscape)
-        {
-            var uri = new Uri(stringToEscape, UriKind.RelativeOrAbsolute);
-            if (uri.IsAbsoluteUri)
+                inputUrl = "." + inputUrl;
+            }
+            else if (!inputUrl.StartsWith('.'))
             {
-                return uri.AbsoluteUri;
+                inputUrl = "./" + inputUrl;
             }
 
-            var parts = stringToEscape.Split(Delimiter[0]);
-            return string.Join(Delimiter, parts.Select(Uri.EscapeDataString));
+            if (Uri.TryCreate(baseUri, inputUrl, out resultUri))
+            {
+                // If the input URL is relative, combine it with the base URI
+                return resultUri;
+            }
+
+            return new Uri(inputUrl);
         }
     }
 }
