@@ -1,6 +1,9 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
+using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Services;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
 using Xunit;
 
@@ -50,6 +53,83 @@ public class AzureBlobStorageProviderTests
         ValidateFailure<AzureBlobOptions>(error, Options.DefaultName, 1,
             $"DataAnnotation validation failed for '{nameof(AzureBlobOptions)}' members: '{nameof(AzureBlobOptions.ConnectionString)}' with the error: 'The {nameof(AzureBlobOptions.ConnectionString)} field is required.'.");
     }
+
+    [Theory]
+    [InlineData("catalog/151349/epsonprinter.txt", "https://qademovc3.blob.core.windows.net/catalog/151349/epsonprinter.txt")]
+    [InlineData("catalog/151349/epson printer.txt", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt")]
+    [InlineData("catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("catalog/151349/epson printer.txt?test=Name With Space", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/catalog/151349/epsonprinter.txt", "https://qademovc3.blob.core.windows.net/catalog/151349/epsonprinter.txt")]
+    [InlineData("/catalog/151349/epson printer.txt", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt")]
+    [InlineData("/catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/catalog/151349/epson printer.txt?test=Name With Space", "https://qademovc3.blob.core.windows.net/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("epsonprinter.txt", "https://qademovc3.blob.core.windows.net/epsonprinter.txt")]
+    [InlineData("/epson printer.txt", "https://qademovc3.blob.core.windows.net/epson%20printer.txt")]
+    [InlineData("epson%20printer.txt?test=Name%20With%20Space", "https://qademovc3.blob.core.windows.net/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/epson printer.txt?test=Name With Space", "https://qademovc3.blob.core.windows.net/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/epson%20printer.txt?test=Name+With+Space", "https://qademovc3.blob.core.windows.net/epson%20printer.txt?test=Name+With+Space")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson printer.txt?test=Name With Space", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epsonprinter.txt", "https://localhost:5001/assets/catalog/151349/epsonprinter.txt")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson printer.txt", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    public void GetAbsoluteUrlTest(string blobKey, string absoluteUrl)
+    {
+        var options = new AzureBlobOptions
+        {
+            ConnectionString = "DefaultEndpointsProtocol=https;AccountName=qademovc3;AccountKey=;EndpointSuffix=core.windows.net",
+            CdnUrl = "",
+            AllowBlobPublicAccess = true,
+        };
+
+        var mockFileExtensionService = new Mock<IFileExtensionService>();
+        mockFileExtensionService
+            .Setup(service => service.IsExtensionAllowedAsync(It.IsAny<string>()))
+            .ReturnsAsync(true);
+
+        var provider = new AzureBlobProvider(Options.Create(options), mockFileExtensionService.Object, eventPublisher: null);
+        var blobUrlResolver = (IBlobUrlResolver)provider;
+
+        Assert.Equal(absoluteUrl, blobUrlResolver.GetAbsoluteUrl(blobKey));
+    }
+
+    [Theory]
+    [InlineData("catalog/151349/epsonprinter.txt", "https://cdn.mydomain.com/catalog/151349/epsonprinter.txt")]
+    [InlineData("catalog/151349/epson printer.txt", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt")]
+    [InlineData("catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("catalog/151349/epson printer.txt?test=Name With Space", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/catalog/151349/epsonprinter.txt", "https://cdn.mydomain.com/catalog/151349/epsonprinter.txt")]
+    [InlineData("/catalog/151349/epson printer.txt", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt")]
+    [InlineData("/catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/catalog/151349/epson printer.txt?test=Name With Space", "https://cdn.mydomain.com/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("epsonprinter.txt", "https://cdn.mydomain.com/epsonprinter.txt")]
+    [InlineData("/epson printer.txt", "https://cdn.mydomain.com/epson%20printer.txt")]
+    [InlineData("epson%20printer.txt?test=Name%20With%20Space", "https://cdn.mydomain.com/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/epson printer.txt?test=Name With Space", "https://cdn.mydomain.com/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("/epson%20printer.txt?test=Name+With+Space", "https://cdn.mydomain.com/epson%20printer.txt?test=Name+With+Space")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson printer.txt?test=Name With Space", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epsonprinter.txt", "https://localhost:5001/assets/catalog/151349/epsonprinter.txt")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson printer.txt", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt")]
+    [InlineData("https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space", "https://localhost:5001/assets/catalog/151349/epson%20printer.txt?test=Name%20With%20Space")]
+    public void GetAbsoluteUrlTestWithCdn(string blobKey, string absoluteUrl)
+    {
+        var options = new AzureBlobOptions
+        {
+            ConnectionString = "DefaultEndpointsProtocol=https;AccountName=qademovc3;AccountKey=;EndpointSuffix=core.windows.net",
+            CdnUrl = "cdn.mydomain.com",
+            AllowBlobPublicAccess = true,
+        };
+
+        var mockFileExtensionService = new Mock<IFileExtensionService>();
+        mockFileExtensionService
+            .Setup(service => service.IsExtensionAllowedAsync(It.IsAny<string>()))
+            .ReturnsAsync(true);
+
+        var provider = new AzureBlobProvider(Options.Create(options), mockFileExtensionService.Object, eventPublisher: null);
+        var blobUrlResolver = (IBlobUrlResolver)provider;
+
+        Assert.Equal(absoluteUrl, blobUrlResolver.GetAbsoluteUrl(blobKey));
+    }
+
 
     private static void ValidateFailure<TOptions>(OptionsValidationException ex, string name = "", int count = 1, params string[] errorsToMatch)
     {
