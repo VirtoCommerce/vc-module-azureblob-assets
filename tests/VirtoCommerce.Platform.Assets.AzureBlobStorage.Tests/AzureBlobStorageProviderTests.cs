@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System;
 using System.Linq;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AzureBlobAssetsModule.Core;
@@ -127,6 +128,18 @@ public class AzureBlobStorageProviderTests
         Assert.Equal(absoluteUrl, blobUrlResolver.GetAbsoluteUrl(blobKey));
     }
 
+
+    [Theory]
+    [InlineData("https://qademovc3.core.windows.net/cms", "Themes/", "https://qademovc3.core.windows.net/cms/Themes/")]
+    [InlineData("https://qademovc3.core.windows.net/cms/", "Themes", "https://qademovc3.core.windows.net/cms/Themes")]
+    [InlineData("https://qademovc3.core.windows.net/cms/", "/Themes/", "https://qademovc3.core.windows.net/cms/Themes/")]
+    [InlineData("https://qademovc3.core.windows.net/cms", "/Themes", "https://qademovc3.core.windows.net/cms/Themes")]
+    [InlineData("https://qademovc3.core.windows.net/", "Themes/", "https://qademovc3.core.windows.net/Themes/")]
+    [InlineData("https://qademovc3.core.windows.net", "Themes/", "https://qademovc3.core.windows.net/Themes/")]
+    public void GetAbsoluteUri_StaticMethod(string baseUrl, string inputUrl, string absoluteUrl)
+    {
+        Assert.Equal(absoluteUrl, AzureBlobProvider.GetAbsoluteUri(new Uri(baseUrl), inputUrl).AbsoluteUri);
+    }
 
     private static void ValidateFailure<TOptions>(OptionsValidationException ex, string name = "", int count = 1, params string[] errorsToMatch)
     {

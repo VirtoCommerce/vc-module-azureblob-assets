@@ -587,9 +587,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return result;
         }
 
-        private static Uri GetAbsoluteUri(Uri baseUri, string inputUrl)
+        public static Uri GetAbsoluteUri(Uri baseUri, string inputUrl)
         {
             ArgumentNullException.ThrowIfNull(nameof(inputUrl));
+
+            // base uri should be end with delimiter. see tests
+            if (!baseUri.AbsolutePath.EndsWith(Delimiter))
+            {
+                baseUri = new Uri(baseUri.AbsoluteUri + Delimiter);
+            }
 
             // do trim lead slash to prevent transform it to absolute file path on linux.
             if (Uri.TryCreate(inputUrl.TrimStart('/'), UriKind.Absolute, out var resultUri))
