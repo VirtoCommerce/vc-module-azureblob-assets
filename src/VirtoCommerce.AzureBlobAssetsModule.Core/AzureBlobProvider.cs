@@ -564,14 +564,18 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
             var baseUriQuery = baseUri.Query;
-            return GetParentUrl(baseUriString, blobPrefix, baseUriQuery);
+            var result = GetParentUrl(baseUriString, blobPrefix, baseUriQuery);
+
+            return result;
         }
 
         private static string GetParentUrl(string baseUri, string blobPrefix, string query = null)
         {
             var segments = GetOutlineFromUrl(blobPrefix);
             var parentPath = string.Join(Delimiter, segments.Take(segments.Length - 1));
-            return GetAbsoluteUri(new Uri(baseUri), parentPath, query).AbsoluteUri;
+            var result = GetAbsoluteUri(baseUri, parentPath, query).AbsoluteUri;
+
+            return result;
         }
 
         private string GetRelativeUrl(Uri absoluteUri)
@@ -591,35 +595,36 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return result;
         }
 
-        private static Uri GetAbsoluteUri(Uri baseUri, string inputUrl, string query)
+        public static Uri GetAbsoluteUri(Uri baseUri, string inputUrl)
+        {
+            ArgumentNullException.ThrowIfNull(baseUri);
+            ArgumentException.ThrowIfNullOrEmpty(inputUrl);
+
+            var baseUriString = baseUri.GetLeftPart(UriPartial.Path);
+            var baseUriQuery = baseUri.Query;
+            var result = GetAbsoluteUri(baseUriString, inputUrl, baseUriQuery);
+
+            return result;
+        }
+
+        private static Uri GetAbsoluteUri(string baseUri, string inputUrl, string query)
         {
             var result = GetAbsoluteUri(baseUri, inputUrl);
 
             if (!string.IsNullOrEmpty(query))
             {
-                if (string.IsNullOrEmpty(query))
-                {
-                    return result;
-                }
-
-                var builder = new UriBuilder(result)
-                {
-                    Query = query,
-                };
-                return builder.Uri;
+                result = new UriBuilder(result) { Query = query }.Uri;
             }
 
             return result;
         }
 
-        public static Uri GetAbsoluteUri(Uri baseUri, string inputUrl)
+        private static Uri GetAbsoluteUri(string baseUri, string inputUrl)
         {
-            ArgumentNullException.ThrowIfNull(nameof(inputUrl));
-
-            // base uri should be end with delimiter. see tests
-            if (!baseUri.AbsolutePath.EndsWith(Delimiter))
+            // base uri should be ended with delimiter. see tests
+            if (!baseUri.EndsWith(Delimiter))
             {
-                baseUri = new Uri(baseUri.AbsoluteUri + Delimiter);
+                baseUri += Delimiter;
             }
 
             // do trim lead slash to prevent transform it to absolute file path on linux.
@@ -638,9 +643,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 inputUrl = "./" + inputUrl;
             }
 
-            if (Uri.TryCreate(baseUri, inputUrl, out resultUri))
+            // If the input URL is relative, combine it with the base URI
+            if (Uri.TryCreate(new Uri(baseUri), inputUrl, out resultUri))
             {
-                // If the input URL is relative, combine it with the base URI
                 return resultUri;
             }
 
