@@ -143,6 +143,14 @@ public class AzureBlobStorageProviderTests
         Assert.Equal(absoluteUrl, AzureBlobProvider.GetAbsoluteUri(new Uri(baseUrl), inputUrl).AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("https://qademovc3.core.windows.net/cms/test?sv=2022-11-02&ss=b&srt=co&sp", "Catalog/", "https://qademovc3.core.windows.net/cms/test/Catalog/?sv=2022-11-02&ss=b&srt=co&sp")]
+    [InlineData("https://qademovc3.core.windows.net/cms/test?sv=2022-11-02&ss=b&srt=co&sp", "/Catalog", "https://qademovc3.core.windows.net/cms/test/Catalog?sv=2022-11-02&ss=b&srt=co&sp")]
+    [InlineData("https://qademovc3.core.windows.net/cms/test?sv=2022-11-02&ss=b&srt=co&sp", "/Catalog/", "https://qademovc3.core.windows.net/cms/test/Catalog/?sv=2022-11-02&ss=b&srt=co&sp")]
+    public void GetAbsoluteUriWithParameters_StaticMethod(string baseUrl, string inputUrl, string absoluteUrl)
+    {
+        Assert.Equal(absoluteUrl, AzureBlobProvider.GetAbsoluteUri(new Uri(baseUrl), inputUrl).AbsoluteUri);
+    }
 
     private static void ValidateFailure<TOptions>(OptionsValidationException ex, string name = "", int count = 1, params string[] errorsToMatch)
     {
