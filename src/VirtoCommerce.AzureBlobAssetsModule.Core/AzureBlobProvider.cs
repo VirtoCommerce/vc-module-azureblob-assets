@@ -17,6 +17,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Extensions;
+using VirtoCommerce.Platform.Core.Modularity;
 using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
@@ -131,7 +132,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             if (!await _fileExtensionService.IsExtensionAllowedAsync(filePath))
             {
-                throw new PlatformException("This extension is not allowed. Please contact administrator.");
+                throw new PlatformException($"File extension {Path.GetExtension(filePath)} is not allowed. Please contact administrator.");
             }
 
             var container = await CreateContainerIfNotExists(blobUrl);
@@ -372,7 +373,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             if (!await _fileExtensionService.IsExtensionAllowedAsync(targetPath))
             {
-                throw new PlatformException("This extension is not allowed. Please contact administrator.");
+                throw new PlatformException($"File extension {Path.GetExtension(targetPath)} is not allowed. Please contact administrator.");
             }
 
             var target = container.GetBlockBlobClient(targetPath);
