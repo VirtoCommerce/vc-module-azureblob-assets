@@ -4,9 +4,9 @@
   <version>3.809.0</version>
   <version-tag />
 
-  <platformVersion>3.800.0</platformVersion>
+  <platformVersion>3.853.0</platformVersion>
   <dependencies>
-    <dependency id="VirtoCommerce.Assets" version="3.803.0" />
+    <dependency id="VirtoCommerce.Assets" version="3.808.0" />
   </dependencies>
 
   <title>Azure Blob Storage Assets Provider</title>
@@ -17,7 +17,7 @@
   <owners>
     <owner>Virto Commerce</owner>
   </owners>
-  <projectUrl>https://virtocommerce.com/apps/extensions/vc-module-azureblob-assets</projectUrl>
+  <projectUrl>https://github.com/VirtoCommerce/vc-module-azureblob-assets</projectUrl>
   <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.png</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
   <releaseNotes />
