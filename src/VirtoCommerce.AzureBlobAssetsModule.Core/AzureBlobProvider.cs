@@ -184,10 +184,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 }
                 else
                 {
-                    var blobItems = container.GetBlobsAsync(prefix: blobSearchPrefix);
-                    await foreach (var blobItem in blobItems)
+                    if (isFolder)
                     {
-                        var blobClient = container.GetBlobClient(blobItem.Name);
+                        // Delete all blobs with the prefix (folder)
+                        var blobItems = container.GetBlobsAsync(prefix: blobSearchPrefix);
+                        await foreach (var blobItem in blobItems)
+                        {
+                            var blobClient = container.GetBlobClient(blobItem.Name);
+                            await blobClient.DeleteIfExistsAsync();
+                        }
+                    }
+                    else
+                    {
+                        // Delete only the exact file
+                        var blobClient = container.GetBlobClient(blobSearchPrefix);
                         await blobClient.DeleteIfExistsAsync();
                     }
                 }
