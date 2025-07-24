@@ -78,7 +78,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 var blob = GetBlockBlobClient(blobUrl);
                 var props = await blob.GetPropertiesAsync();
-                result = ConvertToBlobInfo(blob, props.Value);
+                var blobTagResult = await blob.GetTagsAsync();
+                result = ConvertToBlobInfo(blob, props.Value, blobTagResult.Value?.Tags);
             }
             catch
             {
@@ -424,6 +425,74 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #endregion IBlobUrlResolver Members
 
+        protected virtual BlobInfo ConvertToBlobInfo(BlobBaseClient blob, BlobProperties props, IDictionary<string, string> tags)
+        {
+            var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
+
+            var absoluteUri = blob.Uri;
+            var relativeUrl = GetRelativeUrl(absoluteUri);
+            var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
+
+            blobInfo.Url = absoluteUri.AbsoluteUri;
+            blobInfo.RelativeUrl = relativeUrl;
+            blobInfo.Name = fileName;
+            blobInfo.ContentType = props.ContentType.EmptyToNull() ?? MimeTypeResolver.ResolveContentType(fileName);
+            blobInfo.Size = props.ContentLength;
+            blobInfo.CreatedDate = props.CreatedOn.UtcDateTime;
+            blobInfo.ModifiedDate = props.LastModified.UtcDateTime;
+
+            return blobInfo;
+        }
+
+        protected virtual BlobInfo ConvertToBlobInfo(BlobItem blob, Uri baseUri)
+        {
+            var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
+
+            var absoluteUri = GetAbsoluteUri(baseUri, blob.Name);
+            var relativeUrl = GetRelativeUrl(absoluteUri);
+            var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
+
+            blobInfo.Url = absoluteUri.AbsoluteUri;
+            blobInfo.RelativeUrl = relativeUrl;
+            blobInfo.Name = fileName;
+            blobInfo.ContentType = blob.Properties.ContentType.EmptyToNull() ?? MimeTypeResolver.ResolveContentType(fileName);
+            blobInfo.Size = blob.Properties.ContentLength ?? 0;
+            blobInfo.CreatedDate = blob.Properties.CreatedOn!.Value.UtcDateTime;
+            blobInfo.ModifiedDate = blob.Properties.LastModified?.UtcDateTime;
+
+            return blobInfo;
+        }
+
+        protected virtual BlobFolder ConvertToBlobFolder(BlobHierarchyItem blobHierarchyItem, Uri baseUri, BlobContainerProperties containerProperties)
+        {
+            var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
+
+            var absoluteUri = GetAbsoluteUri(baseUri, blobHierarchyItem.Prefix);
+
+            folder.Name = GetOutlineFromUrl(blobHierarchyItem.Prefix).Last();
+            folder.Url = absoluteUri.AbsoluteUri;
+            folder.ParentUrl = GetParentUrl(baseUri, blobHierarchyItem.Prefix);
+            folder.RelativeUrl = GetRelativeUrl(absoluteUri);
+            folder.ModifiedDate = folder.CreatedDate = containerProperties.LastModified.UtcDateTime;
+
+            return folder;
+        }
+
+        protected virtual BlobFolder ConvertToBlobFolder(BlobContainerItem container)
+        {
+            var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
+
+            var baseUri = _blobServiceClient.Uri;
+            var absoluteUri = GetAbsoluteUri(baseUri, container.Name);
+
+            folder.Name = container.Name.Split(Delimiter).Last();
+            folder.Url = absoluteUri.AbsoluteUri;
+            folder.RelativeUrl = GetRelativeUrl(absoluteUri);
+            folder.ModifiedDate = folder.CreatedDate = container.Properties.LastModified.UtcDateTime;
+
+            return folder;
+        }
+
         private async Task<BlobContainerClient> CreateContainerIfNotExists(string blobUrl)
         {
             var container = GetBlobContainerClient(blobUrl);
@@ -497,74 +566,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var container = _blobServiceClient.GetBlobContainerClient(containerName);
 
             return container;
-        }
-
-        private BlobInfo ConvertToBlobInfo(BlobBaseClient blob, BlobProperties props)
-        {
-            var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
-
-            var absoluteUri = blob.Uri;
-            var relativeUrl = GetRelativeUrl(absoluteUri);
-            var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
-
-            blobInfo.Url = absoluteUri.AbsoluteUri;
-            blobInfo.RelativeUrl = relativeUrl;
-            blobInfo.Name = fileName;
-            blobInfo.ContentType = props.ContentType.EmptyToNull() ?? MimeTypeResolver.ResolveContentType(fileName);
-            blobInfo.Size = props.ContentLength;
-            blobInfo.CreatedDate = props.CreatedOn.UtcDateTime;
-            blobInfo.ModifiedDate = props.LastModified.UtcDateTime;
-
-            return blobInfo;
-        }
-
-        private BlobInfo ConvertToBlobInfo(BlobItem blob, Uri baseUri)
-        {
-            var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
-
-            var absoluteUri = GetAbsoluteUri(baseUri, blob.Name);
-            var relativeUrl = GetRelativeUrl(absoluteUri);
-            var fileName = Path.GetFileName(Uri.UnescapeDataString(blob.Name));
-
-            blobInfo.Url = absoluteUri.AbsoluteUri;
-            blobInfo.RelativeUrl = relativeUrl;
-            blobInfo.Name = fileName;
-            blobInfo.ContentType = blob.Properties.ContentType.EmptyToNull() ?? MimeTypeResolver.ResolveContentType(fileName);
-            blobInfo.Size = blob.Properties.ContentLength ?? 0;
-            blobInfo.CreatedDate = blob.Properties.CreatedOn!.Value.UtcDateTime;
-            blobInfo.ModifiedDate = blob.Properties.LastModified?.UtcDateTime;
-
-            return blobInfo;
-        }
-
-        private BlobFolder ConvertToBlobFolder(BlobHierarchyItem blobHierarchyItem, Uri baseUri, BlobContainerProperties containerProperties)
-        {
-            var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
-
-            var absoluteUri = GetAbsoluteUri(baseUri, blobHierarchyItem.Prefix);
-
-            folder.Name = GetOutlineFromUrl(blobHierarchyItem.Prefix).Last();
-            folder.Url = absoluteUri.AbsoluteUri;
-            folder.ParentUrl = GetParentUrl(baseUri, blobHierarchyItem.Prefix);
-            folder.RelativeUrl = GetRelativeUrl(absoluteUri);
-            folder.ModifiedDate = folder.CreatedDate = containerProperties.LastModified.UtcDateTime;
-
-            return folder;
-        }
-
-        private BlobFolder ConvertToBlobFolder(BlobContainerItem container)
-        {
-            var folder = AbstractTypeFactory<BlobFolder>.TryCreateInstance();
-
-            var baseUri = _blobServiceClient.Uri;
-            var absoluteUri = GetAbsoluteUri(baseUri, container.Name);
-
-            folder.Name = container.Name.Split(Delimiter).Last();
-            folder.Url = absoluteUri.AbsoluteUri;
-            folder.RelativeUrl = GetRelativeUrl(absoluteUri);
-            folder.ModifiedDate = folder.CreatedDate = container.Properties.LastModified.UtcDateTime;
-
-            return folder;
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
