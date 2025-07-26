@@ -17,7 +17,6 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Extensions;
-using VirtoCommerce.Platform.Core.Modularity;
 using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
@@ -493,7 +492,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return folder;
         }
 
-        private async Task<BlobContainerClient> CreateContainerIfNotExists(string blobUrl)
+        protected async Task<BlobContainerClient> CreateContainerIfNotExists(string blobUrl)
         {
             var container = GetBlobContainerClient(blobUrl);
 
@@ -502,6 +501,23 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 var accessType = _allowBlobPublicAccess ? PublicAccessType.Blob : PublicAccessType.None;
                 await container.CreateAsync(accessType);
             }
+
+            return container;
+        }
+
+        protected BlockBlobClient GetBlockBlobClient(string blobUrl)
+        {
+            var filePath = GetFilePathFromUrl(blobUrl);
+            var container = GetBlobContainerClient(blobUrl);
+            var blob = container.GetBlockBlobClient(filePath);
+
+            return blob;
+        }
+
+        protected BlobContainerClient GetBlobContainerClient(string blobUrl)
+        {
+            var containerName = GetContainerNameFromUrl(blobUrl);
+            var container = _blobServiceClient.GetBlobContainerClient(containerName);
 
             return container;
         }
@@ -549,23 +565,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
             return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
-        }
-
-        private BlockBlobClient GetBlockBlobClient(string blobUrl)
-        {
-            var filePath = GetFilePathFromUrl(blobUrl);
-            var container = GetBlobContainerClient(blobUrl);
-            var blob = container.GetBlockBlobClient(filePath);
-
-            return blob;
-        }
-
-        private BlobContainerClient GetBlobContainerClient(string blobUrl)
-        {
-            var containerName = GetContainerNameFromUrl(blobUrl);
-            var container = _blobServiceClient.GetBlobContainerClient(containerName);
-
-            return container;
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
