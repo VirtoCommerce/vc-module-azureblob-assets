@@ -4,9 +4,9 @@
   <version>3.812.0</version>
   <version-tag />
 
-  <platformVersion>3.853.0</platformVersion>
+  <platformVersion>3.916.0-alpha.13164-vcst-4203-cleanup</platformVersion>
   <dependencies>
-    <dependency id="VirtoCommerce.Assets" version="3.808.0" />
+    <dependency id="VirtoCommerce.Assets" version="3.814.0-alpha.161-vcst-4203-cleanup" />
   </dependencies>
 
   <title>Azure Blob Storage Assets Provider</title>
@@ -21,7 +21,7 @@
   <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.png</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
   <releaseNotes />
-  <copyright>Copyright © 2024 Virto Commerce. All rights reserved</copyright>
+  <copyright>Copyright © 2024-2025 Virto Commerce. All rights reserved</copyright>
   <tags>assets</tags>
   <assemblyFile>VirtoCommerce.AzureBlobAssetsModule.Web.dll</assemblyFile>
   <moduleType>VirtoCommerce.AzureBlobAssetsModule.Web.Module, VirtoCommerce.AzureBlobAssetsModule.Web</moduleType>
