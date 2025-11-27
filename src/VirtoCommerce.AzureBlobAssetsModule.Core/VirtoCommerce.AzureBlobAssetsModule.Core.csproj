@@ -15,8 +15,8 @@
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.19.1" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-    <PackageReference Include="VirtoCommerce.AssetsModule.Core" Version="3.814.0-alpha.161-vcst-4203-cleanup" />
-    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.916.0-alpha.13164-vcst-4203-cleanup" />
+    <PackageReference Include="VirtoCommerce.AssetsModule.Core" Version="3.814.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.917.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="[8.0.2,9)" />
   </ItemGroup>
 </Project>
