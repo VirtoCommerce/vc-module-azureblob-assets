@@ -18,7 +18,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Web
         public void Initialize(IServiceCollection serviceCollection)
         {
             var assetsProvider = Configuration.GetSection("Assets:Provider").Value;
-            if (assetsProvider.EqualsInvariant(AzureBlobProvider.ProviderName))
+            if (assetsProvider.EqualsIgnoreCase(AzureBlobProvider.ProviderName))
             {
                 serviceCollection.AddOptions<AzureBlobOptions>().Bind(Configuration.GetSection("Assets:AzureBlobStorage")).ValidateDataAnnotations();
                 serviceCollection.AddAzureBlobProvider();
