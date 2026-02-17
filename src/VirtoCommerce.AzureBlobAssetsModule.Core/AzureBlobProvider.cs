@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using Azure.Storage.Blobs;
@@ -188,7 +189,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     if (isFolder)
                     {
                         // Delete all blobs with the prefix (folder)
-                        var blobItems = container.GetBlobsAsync(prefix: blobSearchPrefix);
+                        var blobItems = container.GetBlobsAsync(BlobTraits.None, BlobStates.None, blobSearchPrefix, CancellationToken.None);
                         await foreach (var blobItem in blobItems)
                         {
                             var blobClient = container.GetBlobClient(blobItem.Name);
@@ -246,7 +247,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     var containerProperties = await container.GetPropertiesAsync();
 
                     // Call the listing operation and return pages of the specified size.
-                    var resultSegment = container.GetBlobsByHierarchyAsync(prefix: prefix, delimiter: Delimiter).AsPages();
+                    var resultSegment = container.GetBlobsByHierarchyAsync(BlobTraits.None, BlobStates.None, Delimiter, prefix, CancellationToken.None).AsPages();
 
                     // Enumerate the blobs returned for each page.
                     await foreach (var blobPage in resultSegment)
@@ -351,7 +352,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             var taskList = new List<Task>();
             var container = GetBlobContainerClient(oldUrl);
-            var blobItems = container.GetBlobsAsync(prefix: oldPath);
+            var blobItems = container.GetBlobsAsync(BlobTraits.None, BlobStates.None, oldPath, CancellationToken.None);
 
             await foreach (var blobItem in blobItems)
             {
@@ -410,7 +411,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         public string GetAbsoluteUrl(string inputUrl)
         {
-            ArgumentNullException.ThrowIfNull(nameof(inputUrl));
+            ArgumentNullException.ThrowIfNull(inputUrl);
 
             var baseUri = _blobServiceClient.Uri;
             if (!string.IsNullOrWhiteSpace(_cdnUrl))
