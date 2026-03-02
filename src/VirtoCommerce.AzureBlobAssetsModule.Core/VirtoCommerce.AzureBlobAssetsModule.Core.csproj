@@ -13,9 +13,9 @@
     <NoWarn>1701;1702;1705;1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.25.1" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageReference Include="VirtoCommerce.AssetsModule.Core" Version="3.1000.0" />
-    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1002.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1008.0-alpha.13209-vcst-4697-azurecore" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
   </ItemGroup>
 </Project>
