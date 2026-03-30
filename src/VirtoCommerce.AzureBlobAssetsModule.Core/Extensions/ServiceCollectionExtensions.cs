@@ -1,5 +1,5 @@
-using Microsoft.Extensions.DependencyInjection;
 using System;
+using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
 
@@ -12,6 +12,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core.Extensions
             services.AddSingleton<ICommonBlobProvider, AzureBlobProvider>();
             services.AddSingleton<IBlobStorageProvider, AzureBlobProvider>();
             services.AddSingleton<IBlobUrlResolver, AzureBlobProvider>();
+            services.AddSingleton<IAzureBlobUrlResolver, AzureBlobProvider>();
             if (setupAction != null)
             {
                 services.Configure(setupAction);
