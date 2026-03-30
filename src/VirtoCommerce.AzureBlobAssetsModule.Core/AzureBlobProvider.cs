@@ -430,15 +430,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         public string GenerateSasUrl(string blobUrl, TimeSpan expiresIn)
         {
-            var blob = GetBlockBlobClient(blobUrl);
+            var blobName = GetFilePathFromUrl(blobUrl);
             var containerName = GetContainerNameFromUrl(blobUrl);
             var blobClient = GetBlobContainerClient(blobUrl)
-                .GetBlobClient(blob.Name);
+                .GetBlobClient(blobName);
 
             var sasBuilder = new BlobSasBuilder
             {
                 BlobContainerName = containerName,
-                BlobName = blob.Name,
+                BlobName = blobName,
                 Resource = "b",
                 ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn)
             };
