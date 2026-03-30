@@ -8,6 +8,7 @@ using System.Web;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
+using Azure.Storage.Sas;
 using Microsoft.Extensions.Options;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
@@ -22,7 +23,7 @@ using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
-    public class AzureBlobProvider : IBlobStorageProvider, IBlobUrlResolver, ICommonBlobProvider
+    public class AzureBlobProvider : IBlobStorageProvider, IBlobUrlResolver, ICommonBlobProvider, IAzureBlobUrlResolver
     {
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
@@ -424,6 +425,30 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         }
 
         #endregion IBlobUrlResolver Members
+
+        #region IAzureBlobUrlResolver Members
+
+        public string GenerateSasUrl(string blobUrl, TimeSpan expiresIn)
+        {
+            var blobName = GetFilePathFromUrl(blobUrl);
+            var containerName = GetContainerNameFromUrl(blobUrl);
+            var blobClient = GetBlobContainerClient(blobUrl)
+                .GetBlobClient(blobName);
+
+            var sasBuilder = new BlobSasBuilder
+            {
+                BlobContainerName = containerName,
+                BlobName = blobName,
+                Resource = "b",
+                ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn)
+            };
+
+            sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+            return blobClient.GenerateSasUri(sasBuilder).ToString();
+        }
+
+        #endregion
 
         protected virtual BlobInfo ConvertToBlobInfo(BlobBaseClient blob, BlobProperties props, IDictionary<string, string> tags)
         {
