@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using VirtoCommerce.AssetsModule.Core.Assets;
@@ -9,15 +10,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Tests;
 
 [Trait("Category", "IntegrationTest")]
 [Collection("AzureBlobStorageProvider")]
-public class AzureBlobStorageProviderIntegrationTests
+public class AzureBlobStorageProviderIntegrationTests(AzureBlobStorageProviderIntegrationTestSetup fixture)
 {
-    private readonly AzureBlobStorageProviderIntegrationTestSetup _fixture;
     private const string ContainerName = "virtualsupplier";
-
-    public AzureBlobStorageProviderIntegrationTests(AzureBlobStorageProviderIntegrationTestSetup fixture)
-    {
-        _fixture = fixture;
-    }
 
     [Fact]
     public void GetAbsoluteUrl_Should_ReturnUrl()
@@ -26,7 +21,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
-        var uri = _fixture.Provider.GetAbsoluteUrl(blobUrl);
+        var uri = fixture.Provider.GetAbsoluteUrl(blobUrl);
 
         // Assert
         Assert.NotEmpty(uri);
@@ -40,7 +35,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
-        var blobInfo = await _fixture.Provider.GetBlobInfoAsync(blobUrl);
+        var blobInfo = await fixture.Provider.GetBlobInfoAsync(blobUrl);
 
         // Assert
         Assert.NotNull(blobInfo);
@@ -54,7 +49,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string blobUrl = $"/{ContainerName}/Catalog/result.json";
 
         // Act
-        await using var stream = await _fixture.Provider.OpenReadAsync(blobUrl);
+        await using var stream = await fixture.Provider.OpenReadAsync(blobUrl);
 
         // Assert
         Assert.True(stream.CanRead);
@@ -68,7 +63,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string blobUrl = $"/{ContainerName}/Catalog/temp.json";
 
         // Act
-        await using var stream = await _fixture.Provider.OpenWriteAsync(blobUrl);
+        await using var stream = await fixture.Provider.OpenWriteAsync(blobUrl);
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync("""{"result":true}""");
 
@@ -83,18 +78,18 @@ public class AzureBlobStorageProviderIntegrationTests
         const string blobUrl = $"/{ContainerName}/Catalog/remove.json";
 
         // Act
-        await using (var stream = await _fixture.Provider.OpenWriteAsync(blobUrl))
+        await using (var stream = await fixture.Provider.OpenWriteAsync(blobUrl))
         {
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync("""{"result":true}""");
         }
-        var created = await _fixture.Provider.ExistsAsync(blobUrl);
+        var created = await fixture.Provider.ExistsAsync(blobUrl);
         var removed = false;
 
         if (created)
         {
-            await _fixture.Provider.RemoveAsync([blobUrl]);
-            removed = !await _fixture.Provider.ExistsAsync(blobUrl);
+            await fixture.Provider.RemoveAsync([blobUrl]);
+            removed = !await fixture.Provider.ExistsAsync(blobUrl);
         }
 
         // Assert
@@ -109,22 +104,22 @@ public class AzureBlobStorageProviderIntegrationTests
         const string newBlobUrl = $"/{ContainerName}/Catalog/MoveFolder/move.json";
 
         // Act
-        await using (var stream = await _fixture.Provider.OpenWriteAsync(oldBlobUrl))
+        await using (var stream = await fixture.Provider.OpenWriteAsync(oldBlobUrl))
         {
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync("""{"result":true}""");
         }
-        var created = await _fixture.Provider.ExistsAsync(oldBlobUrl);
+        var created = await fixture.Provider.ExistsAsync(oldBlobUrl);
 
         var moved = false;
-        if (await _fixture.Provider.ExistsAsync(newBlobUrl))
+        if (await fixture.Provider.ExistsAsync(newBlobUrl))
         {
-            await _fixture.Provider.RemoveAsync([newBlobUrl]);
+            await fixture.Provider.RemoveAsync([newBlobUrl]);
         }
         if (created)
         {
-            await _fixture.Provider.MoveAsyncPublic(oldBlobUrl, newBlobUrl);
-            moved = !await _fixture.Provider.ExistsAsync(oldBlobUrl) && await _fixture.Provider.ExistsAsync(newBlobUrl);
+            await fixture.Provider.MoveAsyncPublic(oldBlobUrl, newBlobUrl);
+            moved = !await fixture.Provider.ExistsAsync(oldBlobUrl) && await fixture.Provider.ExistsAsync(newBlobUrl);
         }
 
         // Assert
@@ -139,22 +134,22 @@ public class AzureBlobStorageProviderIntegrationTests
         const string newBlobUrl = $"/{ContainerName}/Catalog/CopyFolder/copy.json";
 
         // Act
-        await using (var stream = await _fixture.Provider.OpenWriteAsync(oldBlobUrl))
+        await using (var stream = await fixture.Provider.OpenWriteAsync(oldBlobUrl))
         {
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync("""{"result":true}""");
         }
-        var created = await _fixture.Provider.ExistsAsync(oldBlobUrl);
+        var created = await fixture.Provider.ExistsAsync(oldBlobUrl);
 
         var copied = false;
-        if (await _fixture.Provider.ExistsAsync(newBlobUrl))
+        if (await fixture.Provider.ExistsAsync(newBlobUrl))
         {
-            await _fixture.Provider.RemoveAsync([newBlobUrl]);
+            await fixture.Provider.RemoveAsync([newBlobUrl]);
         }
         if (created)
         {
-            await _fixture.Provider.CopyAsync(oldBlobUrl, newBlobUrl);
-            copied = await _fixture.Provider.ExistsAsync(oldBlobUrl) && await _fixture.Provider.ExistsAsync(newBlobUrl);
+            await fixture.Provider.CopyAsync(oldBlobUrl, newBlobUrl);
+            copied = await fixture.Provider.ExistsAsync(oldBlobUrl) && await fixture.Provider.ExistsAsync(newBlobUrl);
         }
 
         // Assert
@@ -168,7 +163,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string folderUrl = $"/{ContainerName}/Catalog";
 
         // Act
-        var result = await _fixture.Provider.SearchAsync(folderUrl, null);
+        var result = await fixture.Provider.SearchAsync(folderUrl, null);
 
         // Assert
         Assert.False(result?.Results.IsNullOrEmpty());
@@ -181,7 +176,7 @@ public class AzureBlobStorageProviderIntegrationTests
         const string keyword = ContainerName;
 
         // Act
-        var result = await _fixture.Provider.SearchAsync(null, keyword);
+        var result = await fixture.Provider.SearchAsync(null, keyword);
 
         // Assert
         Assert.False(result?.Results.IsNullOrEmpty());
@@ -198,8 +193,8 @@ public class AzureBlobStorageProviderIntegrationTests
         };
 
         // Act
-        await _fixture.Provider.CreateFolderAsync(folder);
-        var created = await _fixture.Provider.ExistsAsync(folderUrl);
+        await fixture.Provider.CreateFolderAsync(folder);
+        var created = await fixture.Provider.ExistsAsync(folderUrl);
 
         // Assert
         Assert.True(created);
@@ -217,11 +212,25 @@ public class AzureBlobStorageProviderIntegrationTests
         };
 
         // Act
-        await _fixture.Provider.CreateFolderAsync(folder);
-        var created = await _fixture.Provider.ExistsAsync(folderUrl);
+        await fixture.Provider.CreateFolderAsync(folder);
+        var created = await fixture.Provider.ExistsAsync(folderUrl);
 
         // Assert
         Assert.True(created);
+    }
+
+    [Fact]
+    public void GenerateSasUrl_Should_ReturnUrl()
+    {
+        // Arrange
+        const string blobUrl = $"/{ContainerName}/Catalog/result.json";
+
+        // Act
+        var uri = fixture.Provider.GenerateSasUrl(blobUrl, TimeSpan.FromMinutes(1));
+
+        // Assert
+        Assert.NotEmpty(uri);
+        Assert.StartsWith("https", uri);
     }
 }
 
