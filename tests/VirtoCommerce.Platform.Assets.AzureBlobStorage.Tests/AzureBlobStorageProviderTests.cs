@@ -211,6 +211,23 @@ public class AzureBlobStorageProviderTests
 #pragma warning restore CS0618
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AzureBlobOptions_CdnUrlSetter_DoesNotClearPublicUrl_WhenValueIsNullOrEmpty(string emptyValue)
+    {
+        // Guards against the configuration binder calling CdnUrl=null after PublicUrl
+        // has been bound (which would otherwise silently wipe out PublicUrl).
+        var options = new AzureBlobOptions { PublicUrl = "https://cdn.example.com" };
+
+#pragma warning disable CS0618 // exercising the obsolete alias intentionally
+        options.CdnUrl = emptyValue;
+#pragma warning restore CS0618
+
+        Assert.Equal("https://cdn.example.com", options.PublicUrl);
+    }
+
     [Fact]
     public void LegacyCdnUrlConfig_StillRoutedThroughPublicUrl()
     {

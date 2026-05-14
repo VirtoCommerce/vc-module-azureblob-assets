@@ -18,11 +18,23 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// <summary>
         /// Url of the CDN server. Alias of <see cref="PublicUrl"/> kept for backward compatibility.
         /// </summary>
+        /// <remarks>
+        /// The setter ignores null or whitespace-only values so that an accidental
+        /// CdnUrl=null assignment (e.g. when the configuration binder iterates this
+        /// alias property after PublicUrl has already been bound) cannot clear a
+        /// value that was set through PublicUrl.
+        /// </remarks>
         [Obsolete("Use PublicUrl instead. CdnUrl is kept as an alias for backward compatibility.")]
         public string CdnUrl
         {
             get => PublicUrl;
-            set => PublicUrl = value;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    PublicUrl = value;
+                }
+            }
         }
 
         /// <summary>
