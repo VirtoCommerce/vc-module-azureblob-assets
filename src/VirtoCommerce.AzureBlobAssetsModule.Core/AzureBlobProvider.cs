@@ -9,6 +9,8 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Sas;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using VirtoCommerce.Assets.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
@@ -33,17 +35,35 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private readonly bool _allowBlobPublicAccess;
         private readonly IFileExtensionService _fileExtensionService;
         private readonly IEventPublisher _eventPublisher;
+        private readonly ILogger<AzureBlobProvider> _logger;
 
         public AzureBlobProvider(
             IOptions<AzureBlobOptions> options,
             IFileExtensionService fileExtensionService,
             IEventPublisher eventPublisher)
+            : this(options, fileExtensionService, eventPublisher, NullLogger<AzureBlobProvider>.Instance)
+        {
+        }
+
+        public AzureBlobProvider(
+            IOptions<AzureBlobOptions> options,
+            IFileExtensionService fileExtensionService,
+            IEventPublisher eventPublisher,
+            ILogger<AzureBlobProvider> logger)
         {
             _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
+            _logger = logger ?? NullLogger<AzureBlobProvider>.Instance;
             _publicBaseUri = NormalizePublicUrl(options.Value.PublicUrl, _blobServiceClient.Uri.Scheme);
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
             _fileExtensionService = fileExtensionService;
             _eventPublisher = eventPublisher;
+
+            _logger.LogInformation(
+                "AzureBlobProvider initialized. BlobServiceUri='{BlobServiceUri}', PublicUrlConfigured='{PublicUrlValue}', PublicBaseUri='{PublicBaseUri}', AllowBlobPublicAccess={AllowBlobPublicAccess}",
+                _blobServiceClient.Uri,
+                string.IsNullOrWhiteSpace(options.Value.PublicUrl) ? "(empty)" : options.Value.PublicUrl,
+                _publicBaseUri?.ToString() ?? "(null - falls back to blob service Uri)",
+                _allowBlobPublicAccess);
         }
 
         private static Uri NormalizePublicUrl(string publicUrl, string defaultScheme)
@@ -257,6 +277,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 {
                     var internalBaseUri = container.Uri; // absoluteUri is escaped already
                     var publicBaseUri = GetAbsoluteUri(GetPublicBaseUri(), container.Name + Delimiter);
+                    _logger.LogDebug(
+                        "SearchAsync: folderUrl='{FolderUrl}', container='{Container}', internalBaseUri='{InternalBaseUri}', publicBaseUri='{PublicBaseUri}', publicUrlConfigured={PublicUrlConfigured}",
+                        folderUrl,
+                        container.Name,
+                        internalBaseUri,
+                        publicBaseUri,
+                        _publicBaseUri != null);
                     var prefix = GetDirectoryPathFromUrl(folderUrl);
                     if (!string.IsNullOrEmpty(keyword))
                     {
