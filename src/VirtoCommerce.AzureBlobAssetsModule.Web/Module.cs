@@ -23,7 +23,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Web
                 serviceCollection.AddOptions<AzureBlobOptions>().Bind(Configuration.GetSection("Assets:AzureBlobStorage")).ValidateDataAnnotations();
                 serviceCollection.AddAzureBlobProvider();
             }
-
         }
 
         public void PostInitialize(IApplicationBuilder appBuilder)
