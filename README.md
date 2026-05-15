@@ -11,7 +11,7 @@ The Azure Blob Storage Assets module provides integration with [Azure Blob Stora
         "Provider": "AzureBlobStorage",
         "AzureBlobStorage": {
             "ConnectionString": "",
-            "CdnUrl": "",
+            "PublicUrl": "",
             "AllowBlobPublicAccess": true
         }
     }
@@ -19,8 +19,13 @@ The Azure Blob Storage Assets module provides integration with [Azure Blob Stora
 3. Modify the following settings:
     - Set the **Provider** value to **AzureBlobStorage**.
     - Provide **ConnectionString** in case you are going to use the **AzureBlobStorage** implementation option.
-    - Set up "CdnUrl": "" if you want to configured CDN before Azure Blob Storage. By default, empty. Ex: `https://cdn.somecloud.com`.
+    - Set up **PublicUrl** to expose blobs through a CDN or custom public endpoint instead of the direct Azure Blob URL. Applies to both admin and storefront responses (search results, blob info, copy, download). By default, empty — direct blob URLs are returned. Accepts:
+        - bare host: `cdn.somecloud.com`
+        - full URL: `https://cdn.somecloud.com`
+        - full URL with sub-path: `https://cdn.somecloud.com/static`
     - Set up **AllowBlobPublicAccess** to `false`, if create private container by default. By default, `true`.
+
+> **Note:** The legacy **CdnUrl** setting is still supported as an alias of **PublicUrl** — existing configurations keep working without changes. New deployments should use **PublicUrl**.
 
 
 ## Documentation
