@@ -18,7 +18,7 @@
     <owner>Virto Commerce</owner>
   </owners>
   <projectUrl>https://github.com/VirtoCommerce/vc-module-azureblob-assets</projectUrl>
-  <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssetsModule)/Content/logo.svg</iconUrl>
+  <iconUrl>Modules/$(VirtoCommerce.AzureBlobAssets)/Content/logo.svg</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
   <releaseNotes />
   <copyright>Copyright © 2024-2026 Virto Commerce. All rights reserved</copyright>
