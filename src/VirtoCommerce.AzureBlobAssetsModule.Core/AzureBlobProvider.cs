@@ -508,12 +508,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             return blobInfo;
         }
 
-        [Obsolete("Use ConvertToBlobInfo(BlobItem, Uri publicBaseUri, Uri internalBaseUri) overload.")]
-        protected virtual BlobInfo ConvertToBlobInfo(BlobItem blob, Uri baseUri)
-        {
-            return ConvertToBlobInfo(blob, baseUri, baseUri);
-        }
-
         protected virtual BlobInfo ConvertToBlobInfo(BlobItem blob, Uri publicBaseUri, Uri internalBaseUri)
         {
             var blobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
@@ -531,12 +525,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             blobInfo.ModifiedDate = blob.Properties.LastModified?.UtcDateTime;
 
             return blobInfo;
-        }
-
-        [Obsolete("Use ConvertToBlobFolder(BlobHierarchyItem, Uri publicBaseUri, Uri internalBaseUri, BlobContainerProperties) overload.")]
-        protected virtual BlobFolder ConvertToBlobFolder(BlobHierarchyItem blobHierarchyItem, Uri baseUri, BlobContainerProperties containerProperties)
-        {
-            return ConvertToBlobFolder(blobHierarchyItem, baseUri, baseUri, containerProperties);
         }
 
         protected virtual BlobFolder ConvertToBlobFolder(
