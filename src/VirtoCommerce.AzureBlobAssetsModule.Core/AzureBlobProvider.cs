@@ -397,6 +397,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 newPath = GetDirectoryPathFromUrl(newUrl);
             }
 
+            ValidateDestinationNotNestedInSource(oldPath, newPath);
+
             var taskList = new List<Task>();
             var container = GetBlobContainerClient(oldUrl);
             var blobItems = container.GetBlobsAsync(BlobTraits.None, BlobStates.None, oldPath, CancellationToken.None);
@@ -449,6 +451,25 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                         await sourceBlob.DeleteIfExistsAsync();
                     }
                 }
+            }
+        }
+
+        private static void ValidateDestinationNotNestedInSource(string sourcePrefix, string destinationPrefix)
+        {
+            if (string.IsNullOrEmpty(sourcePrefix) || string.IsNullOrEmpty(destinationPrefix))
+            {
+                return;
+            }
+
+            var source = sourcePrefix.TrimEnd(Delimiter[0]);
+            var destination = destinationPrefix.TrimEnd(Delimiter[0]);
+
+            // Reject a destination nested beneath the source. Otherwise MoveAsync re-lists its
+            // own freshly-written blobs (the listing is lazily paged while new blobs are being
+            // created under the same prefix) and copies without bound (resource/cost DoS).
+            if (destination.StartsWith(source + Delimiter, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PlatformException($"Invalid destination '{destinationPrefix}': cannot be nested within the source '{sourcePrefix}'.");
             }
         }
 
