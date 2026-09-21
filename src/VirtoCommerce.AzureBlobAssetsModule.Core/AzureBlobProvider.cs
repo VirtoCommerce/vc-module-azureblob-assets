@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -22,6 +23,8 @@ using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Extensions;
 using BlobInfo = VirtoCommerce.AssetsModule.Core.Assets.BlobInfo;
+
+[assembly: InternalsVisibleTo("VirtoCommerce.AzureBlobAssetsModule.Tests")]
 
 namespace VirtoCommerce.AzureBlobAssetsModule.Core
 {
@@ -397,6 +400,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 newPath = GetDirectoryPathFromUrl(newUrl);
             }
 
+            ValidateDestinationNotNestedInSource(oldPath, newPath);
+
             var taskList = new List<Task>();
             var container = GetBlobContainerClient(oldUrl);
             var blobItems = container.GetBlobsAsync(BlobTraits.None, BlobStates.None, oldPath, CancellationToken.None);
@@ -450,6 +455,35 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                     }
                 }
             }
+        }
+
+        private static void ValidateDestinationNotNestedInSource(string sourcePrefix, string destinationPrefix)
+        {
+            // Reject a destination nested beneath the source. Otherwise MoveAsync re-lists its
+            // own freshly-written blobs (the listing is lazily paged while new blobs are being
+            // created under the same prefix) and copies without bound (resource/cost DoS).
+            if (IsDestinationNestedInSource(sourcePrefix, destinationPrefix))
+            {
+                throw new PlatformException($"Invalid destination '{destinationPrefix}': cannot be nested within the source '{sourcePrefix}'.");
+            }
+        }
+
+        /// <summary>
+        /// Returns true when <paramref name="destinationPrefix"/> is nested beneath
+        /// <paramref name="sourcePrefix"/>. Azure blob names are case-sensitive, so the comparison
+        /// is ordinal (case-sensitive) regardless of host OS.
+        /// </summary>
+        internal static bool IsDestinationNestedInSource(string sourcePrefix, string destinationPrefix)
+        {
+            if (string.IsNullOrEmpty(sourcePrefix) || string.IsNullOrEmpty(destinationPrefix))
+            {
+                return false;
+            }
+
+            var source = sourcePrefix.TrimEnd(Delimiter[0]);
+            var destination = destinationPrefix.TrimEnd(Delimiter[0]);
+
+            return destination.StartsWith(source + Delimiter, StringComparison.Ordinal);
         }
 
         #endregion IBlobStorageProvider Members
