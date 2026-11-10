@@ -33,7 +33,15 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
         private const string Delimiter = "/";
+
+        /// <summary>
+        /// The longest a user delegation key, and so a url signed by a service principal, can stay valid.
+        /// </summary>
+        public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(7);
+
         private readonly BlobServiceClient _blobServiceClient;
+        private readonly bool _signsWithUserDelegationKey;
+        private UserDelegationKey _userDelegationKey;
         private readonly Uri _publicBaseUri;
         private readonly bool _allowBlobPublicAccess;
         private readonly IFileExtensionService _fileExtensionService;
@@ -54,7 +62,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             IEventPublisher eventPublisher,
             ILogger<AzureBlobProvider> logger)
         {
-            _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
+            _blobServiceClient = AzureBlobConnectionString.CreateServiceClient(options.Value.ConnectionString);
+            _signsWithUserDelegationKey = AzureBlobConnectionString.IsServicePrincipal(options.Value.ConnectionString);
             _logger = logger ?? NullLogger<AzureBlobProvider>.Instance;
             _publicBaseUri = NormalizePublicUrl(options.Value.PublicUrl, _blobServiceClient.Uri.Scheme);
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
@@ -501,8 +510,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #region IAzureBlobUrlResolver Members
 
+        /// <summary>
+        /// True when the connection can sign a url: it holds an account key, or it is a service principal, which signs
+        /// with a user delegation key. A shared access signature signs nothing.
+        /// </summary>
+        public virtual bool CanGenerateSasUrl => _signsWithUserDelegationKey || _blobServiceClient.CanGenerateAccountSasUri;
+
         public string GenerateSasUrl(string blobUrl, TimeSpan expiresIn)
         {
+            if (_signsWithUserDelegationKey && expiresIn > MaxUserDelegationSasLifetime)
+            {
+                throw new ArgumentOutOfRangeException(nameof(expiresIn), expiresIn,
+                    $"A url signed by a service principal is valid for {MaxUserDelegationSasLifetime.TotalDays} days at most.");
+            }
+
             var blobName = GetFilePathFromUrl(blobUrl);
             var containerName = GetContainerNameFromUrl(blobUrl);
             var blobClient = GetBlobContainerClient(blobUrl)
@@ -518,7 +539,39 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
 
-            return blobClient.GenerateSasUri(sasBuilder).ToString();
+            if (!_signsWithUserDelegationKey)
+            {
+                return blobClient.GenerateSasUri(sasBuilder).ToString();
+            }
+
+            var blobUriBuilder = new BlobUriBuilder(blobClient.Uri)
+            {
+                Sas = sasBuilder.ToSasQueryParameters(GetUserDelegationKey(sasBuilder.ExpiresOn), _blobServiceClient.AccountName),
+            };
+
+            return blobUriBuilder.ToUri().ToString();
+        }
+
+        /// <summary>
+        /// A user delegation key valid at least until the given time. One key signs every url of this provider until
+        /// it expires, so a page of signed urls costs one request to the storage account rather than one per url.
+        /// </summary>
+        private UserDelegationKey GetUserDelegationKey(DateTimeOffset validUntil)
+        {
+            var key = _userDelegationKey;
+            if (key is null || key.SignedExpiresOn < validUntil)
+            {
+                //Requested for the longest allowed time after the url's expiry was fixed, so it always covers that expiry.
+                key = RequestUserDelegationKey(DateTimeOffset.UtcNow.Add(MaxUserDelegationSasLifetime));
+                _userDelegationKey = key;
+            }
+
+            return key;
+        }
+
+        protected virtual UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)
+        {
+            return _blobServiceClient.GetUserDelegationKey(startsOn: null, expiresOn: expiresOn).Value;
         }
 
         #endregion
