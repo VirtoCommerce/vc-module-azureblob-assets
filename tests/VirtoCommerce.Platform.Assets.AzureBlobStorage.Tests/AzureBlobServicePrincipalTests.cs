@@ -138,6 +138,22 @@ public class AzureBlobServicePrincipalTests
         Assert.Null(new BlobUriBuilder(new Uri(signedUrl)).Sas.KeyObjectId);
     }
 
+    [Theory]
+    [InlineData("https://myaccount.blob.core.windows.net/mycontainer/folder/a%2520b.csv", "folder/a%20b.csv")]
+    [InlineData("https://myaccount.blob.core.windows.net/mycontainer/folder/a+b.csv", "folder/a+b.csv")]
+    [InlineData("https://myaccount.blob.core.windows.net/mycontainer/folder/a%2Bb.csv", "folder/a+b.csv")]
+    [InlineData("https://myaccount.blob.core.windows.net/mycontainer/folder/a%20b.csv", "folder/a b.csv")]
+    [InlineData("/mycontainer/folder/a%20b.csv", "folder/a b.csv")]
+    [InlineData("mycontainer/folder/a+b.csv", "folder/a+b.csv")]
+    public void GenerateSasUrl_EscapedBlobName_SignsTheSameBlob(string blobUrl, string blobName)
+    {
+        var accountKeyUrl = new BlobUriBuilder(new Uri(CreateProvider(_accountKeyConnectionString).GenerateSasUrl(blobUrl, TimeSpan.FromDays(1))));
+        var servicePrincipalUrl = new BlobUriBuilder(new Uri(new FakeKeyProvider().GenerateSasUrl(blobUrl, TimeSpan.FromDays(1))));
+
+        Assert.Equal(("mycontainer", blobName), (accountKeyUrl.BlobContainerName, accountKeyUrl.BlobName));
+        Assert.Equal(("mycontainer", blobName), (servicePrincipalUrl.BlobContainerName, servicePrincipalUrl.BlobName));
+    }
+
     private static AzureBlobProvider CreateProvider(string connectionString)
     {
         return new AzureBlobProvider(CreateOptions(connectionString), Mock.Of<IFileExtensionService>(), null);

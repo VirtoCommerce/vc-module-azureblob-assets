@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -715,13 +714,23 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private static string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) + Delimiter : null;
+            return !string.IsNullOrEmpty(result) ? DecodeBlobPath(url, result) + Delimiter : null;
         }
 
         private static string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            return !string.IsNullOrEmpty(result) ? DecodeBlobPath(url, result) : null;
+        }
+
+        /// <summary>
+        /// Decodes a blob path exactly once. The path of an absolute url is already decoded by <see cref="GetOutlineFromUrl"/>;
+        /// decoding it again turns a blob named <c>a%20b.csv</c> into <c>a b.csv</c>. A path is not form data either:
+        /// a <c>+</c> in it is a plus sign, never a space.
+        /// </summary>
+        private static string DecodeBlobPath(string url, string path)
+        {
+            return url.IsAbsoluteUrl() ? path : Uri.UnescapeDataString(path);
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
