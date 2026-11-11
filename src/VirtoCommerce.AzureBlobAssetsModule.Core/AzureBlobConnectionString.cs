@@ -56,8 +56,8 @@ public static class AzureBlobConnectionString
             return null;
         }
 
-        // The message names the missing keys only: the connection string holds a secret and is never repeated.
-        var blobEndpoint = GetRequiredValue(builder, BlobEndpointKey);
+        // The messages name a key only: the connection string holds a secret and is never repeated.
+        var blobEndpoint = GetValue(builder, BlobEndpointKey) ?? throw MissingKey(BlobEndpointKey, nameof(connectionString));
         if (!Uri.TryCreate(blobEndpoint, UriKind.Absolute, out var blobEndpointUri))
         {
             throw new ArgumentException($"The {BlobEndpointKey} of a service principal connection string is not an absolute url.", nameof(connectionString));
@@ -65,18 +65,23 @@ public static class AzureBlobConnectionString
 
         return new ServicePrincipal(
             blobEndpointUri,
-            GetRequiredValue(builder, TenantIdKey),
-            GetRequiredValue(builder, ClientIdKey),
-            GetRequiredValue(builder, ClientSecretKey));
+            GetValue(builder, TenantIdKey) ?? throw MissingKey(TenantIdKey, nameof(connectionString)),
+            GetValue(builder, ClientIdKey) ?? throw MissingKey(ClientIdKey, nameof(connectionString)),
+            GetValue(builder, ClientSecretKey) ?? throw MissingKey(ClientSecretKey, nameof(connectionString)));
     }
 
-    private static string GetRequiredValue(DbConnectionStringBuilder builder, string key)
+    private static string GetValue(DbConnectionStringBuilder builder, string key)
     {
         return builder.TryGetValue(key, out var value) && value is string text && !string.IsNullOrWhiteSpace(text)
             ? text
-            : throw new ArgumentException(
-                $"A service principal connection string requires {BlobEndpointKey}, {TenantIdKey}, {ClientIdKey} and {ClientSecretKey}; {key} is missing.",
-                "connectionString");
+            : null;
+    }
+
+    private static ArgumentException MissingKey(string key, string paramName)
+    {
+        return new ArgumentException(
+            $"A service principal connection string requires {BlobEndpointKey}, {TenantIdKey}, {ClientIdKey} and {ClientSecretKey}; {key} is missing.",
+            paramName);
     }
 
     private sealed record ServicePrincipal(Uri BlobEndpoint, string TenantId, string ClientId, string ClientSecret);
