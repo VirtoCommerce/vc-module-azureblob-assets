@@ -34,16 +34,14 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private const string Delimiter = "/";
 
         /// <summary>
-        /// The longest a url signed by a service principal can be asked for: the seven days of a user delegation key.
-        /// The url still expires with the key that signs it, so it lasts five to six days at most.
+        /// The longest a url signed by a service principal can be asked for, and how long a requested user delegation
+        /// key lasts. A day short of the seven-day limit: the storage account refuses a key that ends past seven days
+        /// by its own clock, and the server's clock may run ahead of it. A url still expires with the key that signs
+        /// it, so a six-day url signed with a key some hours old lasts that much less.
         /// </summary>
-        public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(7);
+        public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(6);
 
-        /// <summary>
-        /// How long a requested user delegation key lasts. A day short of the limit: the storage account refuses a key
-        /// that ends past seven days by its own clock, and the server's clock may run ahead of it.
-        /// </summary>
-        private static readonly TimeSpan _userDelegationKeyLifetime = TimeSpan.FromDays(6);
+        private static readonly TimeSpan _userDelegationKeyLifetime = MaxUserDelegationSasLifetime;
 
         /// <summary>
         /// How old a key may grow before a url asking to outlive it gets a new one. So a long url requests a key at

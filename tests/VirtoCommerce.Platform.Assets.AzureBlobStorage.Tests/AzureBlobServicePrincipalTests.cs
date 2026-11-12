@@ -101,7 +101,7 @@ public class AzureBlobServicePrincipalTests
     {
         var provider = new FakeKeyProvider();
 
-        //The key is requested for seven days, so it covers any url that expires within them
+        //The key is requested for six days, so it covers any url that expires within them
         provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1));
         provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(2));
 
@@ -135,7 +135,7 @@ public class AzureBlobServicePrincipalTests
     {
         var provider = new FakeKeyProvider();
 
-        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6));
 
         Assert.Equal(provider.LastRequestedExpiry, new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, TimeSpan.FromSeconds(1));
     }
@@ -146,7 +146,7 @@ public class AzureBlobServicePrincipalTests
         var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(5.5) };
 
         provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
-        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6));
 
         Assert.Equal(1, provider.KeyRequests);
         Assert.InRange(new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(5.5).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(5.5).AddMinutes(1));
@@ -159,23 +159,23 @@ public class AzureBlobServicePrincipalTests
 
         provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
         provider.KeyLifetime = null;
-        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6));
 
         Assert.Equal(2, provider.KeyRequests);
         Assert.Equal(provider.LastRequestedExpiry, new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
-    public void GenerateSasUrl_ServicePrincipalLongerThanSevenDays_Throws()
+    public void GenerateSasUrl_ServicePrincipalLongerThanSixDays_Throws()
     {
         var provider = new FakeKeyProvider();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7).Add(TimeSpan.FromSeconds(1))));
+        Assert.Throws<ArgumentOutOfRangeException>(() => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6).Add(TimeSpan.FromSeconds(1))));
         Assert.Equal(0, provider.KeyRequests);
     }
 
     [Fact]
-    public void GenerateSasUrl_AccountKeyLongerThanSevenDays_SignsAsBefore()
+    public void GenerateSasUrl_AccountKeyLongerThanSixDays_SignsAsBefore()
     {
         var provider = CreateProvider(_accountKeyConnectionString);
 
