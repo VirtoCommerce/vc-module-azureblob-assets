@@ -34,9 +34,22 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private const string Delimiter = "/";
 
         /// <summary>
-        /// The longest a user delegation key, and so a url signed by a service principal, can stay valid.
+        /// The longest a url signed by a service principal can be asked for: the seven days of a user delegation key.
+        /// The url still expires with the key that signs it, so it lasts five to six days at most.
         /// </summary>
         public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(7);
+
+        /// <summary>
+        /// How long a requested user delegation key lasts. A day short of the limit: the storage account refuses a key
+        /// that ends past seven days by its own clock, and the server's clock may run ahead of it.
+        /// </summary>
+        private static readonly TimeSpan _userDelegationKeyLifetime = TimeSpan.FromDays(6);
+
+        /// <summary>
+        /// How old a key may grow before a url asking to outlive it gets a new one. So a long url requests a key at
+        /// most once a day, not once per url.
+        /// </summary>
+        private static readonly TimeSpan _userDelegationKeyRenewal = TimeSpan.FromDays(1);
 
         private readonly BlobServiceClient _blobServiceClient;
         private readonly bool _signsWithUserDelegationKey;
@@ -543,25 +556,37 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 return blobClient.GenerateSasUri(sasBuilder).ToString();
             }
 
+            var key = GetUserDelegationKey(sasBuilder.ExpiresOn);
+
+            //A url signed by a key stops working when the key expires, so it does not claim to last longer
+            if (sasBuilder.ExpiresOn > key.SignedExpiresOn)
+            {
+                sasBuilder.ExpiresOn = key.SignedExpiresOn;
+            }
+
             var blobUriBuilder = new BlobUriBuilder(blobClient.Uri)
             {
-                Sas = sasBuilder.ToSasQueryParameters(GetUserDelegationKey(sasBuilder.ExpiresOn), _blobServiceClient.AccountName),
+                Sas = sasBuilder.ToSasQueryParameters(key, _blobServiceClient.AccountName),
             };
 
             return blobUriBuilder.ToUri().ToString();
         }
 
         /// <summary>
-        /// A user delegation key valid at least until the given time. One key signs every url of this provider until
-        /// it expires, so a page of signed urls costs one request to the storage account rather than one per url.
+        /// A user delegation key valid until the given time, or for at least five more days when the url asks for longer.
+        /// One key signs every url of this provider until then, so a page of signed urls costs one request to the
+        /// storage account rather than one per url.
         /// </summary>
         private UserDelegationKey GetUserDelegationKey(DateTimeOffset validUntil)
         {
+            var now = DateTimeOffset.UtcNow;
+            var longestNeeded = now.Add(_userDelegationKeyLifetime - _userDelegationKeyRenewal);
+            var neededUntil = validUntil < longestNeeded ? validUntil : longestNeeded;
+
             var key = _userDelegationKey;
-            if (key is null || key.SignedExpiresOn < validUntil)
+            if (key is null || key.SignedExpiresOn < neededUntil)
             {
-                //Requested for the longest allowed time after the url's expiry was fixed, so it always covers that expiry.
-                key = RequestUserDelegationKey(DateTimeOffset.UtcNow.Add(MaxUserDelegationSasLifetime));
+                key = RequestUserDelegationKey(now.Add(_userDelegationKeyLifetime));
                 _userDelegationKey = key;
             }
 

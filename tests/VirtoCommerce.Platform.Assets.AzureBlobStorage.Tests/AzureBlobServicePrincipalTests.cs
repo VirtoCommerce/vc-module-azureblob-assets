@@ -120,6 +120,52 @@ public class AzureBlobServicePrincipalTests
     }
 
     [Fact]
+    public void GenerateSasUrl_ServicePrincipal_RequestsTheKeyForSixDays()
+    {
+        var provider = new FakeKeyProvider();
+
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+
+        //A day short of the seven-day limit, so a clock running ahead of the storage account's is not refused
+        Assert.InRange(provider.LastRequestedExpiry, DateTimeOffset.UtcNow.AddDays(6).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(6).AddMinutes(1));
+    }
+
+    [Fact]
+    public void GenerateSasUrl_ServicePrincipalLongerThanTheKey_ExpiresWithTheKey()
+    {
+        var provider = new FakeKeyProvider();
+
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+
+        Assert.Equal(provider.LastRequestedExpiry, new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public void GenerateSasUrl_ServicePrincipalLongUrlsAndAKeyUnderADayOld_RequestOneKey()
+    {
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(5.5) };
+
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+
+        Assert.Equal(1, provider.KeyRequests);
+        Assert.InRange(new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(5.5).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(5.5).AddMinutes(1));
+    }
+
+    [Fact]
+    public void GenerateSasUrl_ServicePrincipalLongUrlAndAKeyOverADayOld_RequestsANewKey()
+    {
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(4) };
+
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+        provider.KeyLifetime = null;
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(7));
+
+        Assert.Equal(2, provider.KeyRequests);
+        Assert.Equal(provider.LastRequestedExpiry, new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public void GenerateSasUrl_ServicePrincipalLongerThanSevenDays_Throws()
     {
         var provider = new FakeKeyProvider();
@@ -168,12 +214,15 @@ public class AzureBlobServicePrincipalTests
     {
         public int KeyRequests { get; private set; }
 
-        // Null: the key lasts as long as requested
-        public TimeSpan? KeyLifetime { get; init; }
+        public DateTimeOffset LastRequestedExpiry { get; private set; }
+
+        // Null: the key lasts as long as requested. A shorter one stands for a key requested days ago
+        public TimeSpan? KeyLifetime { get; set; }
 
         protected override UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)
         {
             KeyRequests++;
+            LastRequestedExpiry = expiresOn;
 
             //Positional: the factory has two overloads with the same parameter names in a different order
             return BlobsModelFactory.UserDelegationKey(
