@@ -1,6 +1,10 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
 using Microsoft.Extensions.Options;
 using Moq;
 using VirtoCommerce.AssetsModule.Core.Services;
@@ -166,6 +170,50 @@ public class AzureBlobServicePrincipalTests
     }
 
     [Fact]
+    public void GenerateSasUrl_ServicePrincipalUrlsSignedAtOnceOnAColdProvider_RequestOneKey()
+    {
+        var provider = new FakeKeyProvider { RequestDuration = TimeSpan.FromMilliseconds(200) };
+
+        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, _ => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1)));
+
+        Assert.Equal(1, provider.KeyRequests);
+    }
+
+    [Fact]
+    public async Task GetTagsAsync_BlobWithoutTags_DoesNotAskForThem()
+    {
+        var blob = new Mock<BlobBaseClient>();
+
+        var tags = await AzureBlobProvider.GetTagsAsync(blob.Object, BlobsModelFactory.BlobProperties(tagCount: 0));
+
+        Assert.Null(tags);
+        blob.Verify(x => x.GetTagsAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetTagsAsync_RoleWithoutTagsRead_ReturnsNoTagsInsteadOfFailing()
+    {
+        //Storage Blob Data Reader and Contributor read a blob, but Get Blob Tags answers them 403
+        var blob = new Mock<BlobBaseClient>();
+        blob.Setup(x => x.GetTagsAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(403, "This request is not authorized to perform this operation using this permission.", "AuthorizationPermissionMismatch", null));
+
+        var tags = await AzureBlobProvider.GetTagsAsync(blob.Object, BlobsModelFactory.BlobProperties(tagCount: 2));
+
+        Assert.Null(tags);
+    }
+
+    [Fact]
+    public async Task GetTagsAsync_OtherFailure_IsNotSwallowed()
+    {
+        var blob = new Mock<BlobBaseClient>();
+        blob.Setup(x => x.GetTagsAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(503, "Server busy", "ServerBusy", null));
+
+        await Assert.ThrowsAsync<RequestFailedException>(() => AzureBlobProvider.GetTagsAsync(blob.Object, BlobsModelFactory.BlobProperties(tagCount: 2)));
+    }
+
+    [Fact]
     public void GenerateSasUrl_ServicePrincipalLongerThanSixDays_Throws()
     {
         var provider = new FakeKeyProvider();
@@ -212,16 +260,22 @@ public class AzureBlobServicePrincipalTests
 
     private sealed class FakeKeyProvider() : AzureBlobProvider(CreateOptions(ServicePrincipalConnectionString), Mock.Of<IFileExtensionService>(), null)
     {
-        public int KeyRequests { get; private set; }
+        private int _keyRequests;
+
+        public int KeyRequests => _keyRequests;
 
         public DateTimeOffset LastRequestedExpiry { get; private set; }
 
         // Null: the key lasts as long as requested. A shorter one stands for a key requested days ago
         public TimeSpan? KeyLifetime { get; set; }
 
+        // How long a key request takes, so callers arriving together overlap it
+        public TimeSpan RequestDuration { get; set; }
+
         protected override UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)
         {
-            KeyRequests++;
+            Interlocked.Increment(ref _keyRequests);
+            Thread.Sleep(RequestDuration);
             LastRequestedExpiry = expiresOn;
 
             //Positional: the factory has two overloads with the same parameter names in a different order

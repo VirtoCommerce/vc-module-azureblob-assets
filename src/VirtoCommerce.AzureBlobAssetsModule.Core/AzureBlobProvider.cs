@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -41,8 +42,6 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// </summary>
         public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(6);
 
-        private static readonly TimeSpan _userDelegationKeyLifetime = MaxUserDelegationSasLifetime;
-
         /// <summary>
         /// How old a key may grow before a url asking to outlive it gets a new one. So a long url requests a key at
         /// most once a day, not once per url.
@@ -52,6 +51,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private readonly BlobServiceClient _blobServiceClient;
         private readonly bool _signsWithUserDelegationKey;
         private UserDelegationKey _userDelegationKey;
+        private readonly object _userDelegationKeyLock = new();
         private readonly Uri _publicBaseUri;
         private readonly bool _allowBlobPublicAccess;
         private readonly IFileExtensionService _fileExtensionService;
@@ -72,8 +72,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             IEventPublisher eventPublisher,
             ILogger<AzureBlobProvider> logger)
         {
-            _blobServiceClient = AzureBlobConnectionString.CreateServiceClient(options.Value.ConnectionString);
-            _signsWithUserDelegationKey = AzureBlobConnectionString.IsServicePrincipal(options.Value.ConnectionString);
+            _blobServiceClient = AzureBlobConnectionString.CreateServiceClient(options.Value.ConnectionString, out _signsWithUserDelegationKey);
             _logger = logger ?? NullLogger<AzureBlobProvider>.Instance;
             _publicBaseUri = NormalizePublicUrl(options.Value.PublicUrl, _blobServiceClient.Uri.Scheme);
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
@@ -139,8 +138,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 var blob = GetBlockBlobClient(blobUrl);
                 var props = await blob.GetPropertiesAsync();
-                var blobTagResult = await blob.GetTagsAsync();
-                result = ConvertToBlobInfo(blob, props.Value, blobTagResult.Value?.Tags);
+                var tags = await GetTagsAsync(blob, props.Value);
+                result = ConvertToBlobInfo(blob, props.Value, tags);
             }
             catch
             {
@@ -149,6 +148,32 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The blob's tags, or null when it has none or the credential may not read them.
+        /// </summary>
+        /// <remarks>
+        /// Reading tags takes <c>blobs/tags/read</c>, which only Storage Blob Data Owner has among the built-in roles; a
+        /// service principal with Storage Blob Data Reader or Contributor reads the blob but is refused its tags. That
+        /// refusal must not make a readable blob look missing. Asked only when the properties count a tag, which also
+        /// saves a billed request for every untagged blob.
+        /// </remarks>
+        internal static async Task<IDictionary<string, string>> GetTagsAsync(BlobBaseClient blob, BlobProperties properties)
+        {
+            if (properties.TagCount <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (await blob.GetTagsAsync()).Value?.Tags;
+            }
+            catch (RequestFailedException ex) when (ex.Status == 403)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -562,12 +587,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 sasBuilder.ExpiresOn = key.SignedExpiresOn;
             }
 
-            var blobUriBuilder = new BlobUriBuilder(blobClient.Uri)
-            {
-                Sas = sasBuilder.ToSasQueryParameters(key, _blobServiceClient.AccountName),
-            };
-
-            return blobUriBuilder.ToUri().ToString();
+            return blobClient.GenerateUserDelegationSasUri(sasBuilder, key).ToString();
         }
 
         /// <summary>
@@ -578,14 +598,25 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private UserDelegationKey GetUserDelegationKey(DateTimeOffset validUntil)
         {
             var now = DateTimeOffset.UtcNow;
-            var longestNeeded = now.Add(_userDelegationKeyLifetime - _userDelegationKeyRenewal);
+            var longestNeeded = now.Add(MaxUserDelegationSasLifetime - _userDelegationKeyRenewal);
             var neededUntil = validUntil < longestNeeded ? validUntil : longestNeeded;
 
             var key = _userDelegationKey;
-            if (key is null || key.SignedExpiresOn < neededUntil)
+            if (key is not null && key.SignedExpiresOn >= neededUntil)
             {
-                key = RequestUserDelegationKey(now.Add(_userDelegationKeyLifetime));
-                _userDelegationKey = key;
+                return key;
+            }
+
+            // The provider is a singleton: urls signed at once on a cold provider, or at the daily renewal, wait for
+            // one request instead of each making its own
+            lock (_userDelegationKeyLock)
+            {
+                key = _userDelegationKey;
+                if (key is null || key.SignedExpiresOn < neededUntil)
+                {
+                    key = RequestUserDelegationKey(now.Add(MaxUserDelegationSasLifetime));
+                    _userDelegationKey = key;
+                }
             }
 
             return key;

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Data.Common;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -19,21 +18,25 @@ public static class AzureBlobConnectionString
     private const string ClientIdKey = "ClientId";
     private const string ClientSecretKey = "ClientSecret";
 
-    // One credential per principal: a credential caches its access token, so a client created per operation
-    // does not request a new token every time.
-    private static readonly ConcurrentDictionary<(string TenantId, string ClientId, string ClientSecret), ClientSecretCredential> _credentials = new();
-
+    /// <remarks>
+    /// A service principal gets a credential of its own, which caches and refreshes its access token. So keep the
+    /// client rather than create one per operation: a new client requests a new token on its first call.
+    /// </remarks>
     public static BlobServiceClient CreateServiceClient(string connectionString)
     {
+        return CreateServiceClient(connectionString, out _);
+    }
+
+    internal static BlobServiceClient CreateServiceClient(string connectionString, out bool isServicePrincipal)
+    {
         var servicePrincipal = ParseServicePrincipal(connectionString);
+        isServicePrincipal = servicePrincipal is not null;
         if (servicePrincipal is null)
         {
             return new BlobServiceClient(connectionString);
         }
 
-        var credential = _credentials.GetOrAdd(
-            (servicePrincipal.TenantId, servicePrincipal.ClientId, servicePrincipal.ClientSecret),
-            key => new ClientSecretCredential(key.TenantId, key.ClientId, key.ClientSecret));
+        var credential = new ClientSecretCredential(servicePrincipal.TenantId, servicePrincipal.ClientId, servicePrincipal.ClientSecret);
 
         return new BlobServiceClient(servicePrincipal.BlobEndpoint, credential);
     }
@@ -84,5 +87,15 @@ public static class AzureBlobConnectionString
             paramName);
     }
 
-    private sealed record ServicePrincipal(Uri BlobEndpoint, string TenantId, string ClientId, string ClientSecret);
+    // A class, not a record: a record's generated ToString would print the secret to whatever formats it
+    private sealed class ServicePrincipal(Uri blobEndpoint, string tenantId, string clientId, string clientSecret)
+    {
+        public Uri BlobEndpoint { get; } = blobEndpoint;
+
+        public string TenantId { get; } = tenantId;
+
+        public string ClientId { get; } = clientId;
+
+        public string ClientSecret { get; } = clientSecret;
+    }
 }
