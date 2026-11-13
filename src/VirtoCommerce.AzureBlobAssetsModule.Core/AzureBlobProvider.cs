@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -170,7 +171,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 return (await blob.GetTagsAsync()).Value?.Tags;
             }
-            catch (RequestFailedException ex) when (ex.Status == 403)
+            catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Forbidden)
             {
                 return null;
             }
