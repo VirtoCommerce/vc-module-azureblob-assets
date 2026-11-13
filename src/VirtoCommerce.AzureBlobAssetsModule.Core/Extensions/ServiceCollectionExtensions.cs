@@ -9,10 +9,12 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core.Extensions
     {
         public static void AddAzureBlobProvider(this IServiceCollection services, Action<AzureBlobOptions> setupAction = null)
         {
-            services.AddSingleton<ICommonBlobProvider, AzureBlobProvider>();
-            services.AddSingleton<IBlobStorageProvider, AzureBlobProvider>();
-            services.AddSingleton<IBlobUrlResolver, AzureBlobProvider>();
-            services.AddSingleton<IAzureBlobUrlResolver, AzureBlobProvider>();
+            // One provider behind every interface: each instance would hold a client of its own
+            services.AddSingleton<AzureBlobProvider>();
+            services.AddSingleton<ICommonBlobProvider>(x => x.GetRequiredService<AzureBlobProvider>());
+            services.AddSingleton<IBlobStorageProvider>(x => x.GetRequiredService<AzureBlobProvider>());
+            services.AddSingleton<IBlobUrlResolver>(x => x.GetRequiredService<AzureBlobProvider>());
+            services.AddSingleton<IAzureBlobUrlResolver>(x => x.GetRequiredService<AzureBlobProvider>());
             if (setupAction != null)
             {
                 services.Configure(setupAction);
