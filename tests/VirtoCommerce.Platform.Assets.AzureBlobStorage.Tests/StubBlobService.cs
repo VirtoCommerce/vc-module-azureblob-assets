@@ -36,8 +36,9 @@ internal sealed class StubBlobService : IDisposable
         _ = AcceptAsync();
     }
 
-    public string ConnectionString =>
-        $"DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey={AccountKey};BlobEndpoint=http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/devstoreaccount1;";
+    public string BlobEndpoint => $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/devstoreaccount1";
+
+    public string ConnectionString => $"DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey={AccountKey};BlobEndpoint={BlobEndpoint};";
 
     /// <summary>
     /// The request lines received, such as <c>HEAD /devstoreaccount1/c/a.csv HTTP/1.1</c>.

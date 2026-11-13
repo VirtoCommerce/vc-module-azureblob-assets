@@ -355,8 +355,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var path = folder.Name;
             if (!string.IsNullOrEmpty(folder.ParentUrl))
             {
-                var parentUrl = folder.ParentUrl.IsAbsoluteUrl()
-                    ? GetRelativeUrl(new Uri(folder.ParentUrl))
+                var parentUrl = TryGetAbsoluteUri(folder.ParentUrl, out var parentUri)
+                    ? GetRelativeUrl(parentUri)
                     : folder.ParentUrl;
                 path = UrlHelperExtensions.Combine(parentUrl, folder.Name);
             }
@@ -648,11 +648,11 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
             var relativeUrl = url;
             var separators = _relativeUrlSeparators;
-            if (url.IsAbsoluteUrl())
+            if (TryGetAbsoluteUri(url, out var absoluteUri))
             {
-                relativeUrl = Uri.UnescapeDataString(new Uri(url).AbsolutePath);
-                // A well-formed absolute url has no "\" written out, so one here was encoded as "%5C". Azure Storage
-                // takes it as part of the blob name, and so does a relative url, which is split before it is decoded.
+                relativeUrl = Uri.UnescapeDataString(absoluteUri.AbsolutePath);
+                // Uri has turned a "\" written out into "/", so one here was encoded as "%5C". Azure Storage takes it
+                // as part of the blob name, and so does a relative url, which is split before it is decoded.
                 separators = _absoluteUrlSeparators;
             }
 
@@ -697,11 +697,21 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private static void ThrowIfUrlHasDotSegment(string url)
         {
             // Uri resolves "." and ".." segments of an absolute url, encoded ones included, so they show only in the path as written
-            var path = url.IsAbsoluteUrl()
+            var path = TryGetAbsoluteUri(url, out _)
                 ? new Uri(url, new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true }).AbsolutePath
                 : url;
 
             ThrowIfDotSegment(path);
+        }
+
+        /// <summary>
+        /// Reads an http or https url as absolute whether or not it is well-formed. <c>IsAbsoluteUrl</c> takes only a
+        /// well-formed one, so a space, a "\" or a bracket written out made the url a relative path in container "https:".
+        /// </summary>
+        private static bool TryGetAbsoluteUri(string url, out Uri uri)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out uri)
+                && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
         }
 
         /// <summary>

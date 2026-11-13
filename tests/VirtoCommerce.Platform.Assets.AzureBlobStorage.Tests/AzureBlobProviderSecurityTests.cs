@@ -63,6 +63,9 @@ public class AzureBlobProviderSecurityTests
         "https://account.blob.core.windows.net/c/x/%2e%2e/%2e%2e/other/s.csv",
         // The path of an absolute url is decoded twice on its way to a blob name
         "https://account.blob.core.windows.net/c/x/%252e%252e/%252e%252e/other/s.csv",
+        // An absolute url that is not well-formed, where System.Uri turns "\" into "/"
+        "https://account.blob.core.windows.net/c/x/..\\..\\other/s.csv",
+        "https://account.blob.core.windows.net/c/x/../../other/my file.csv",
         "c/./s.csv",
         "../other/s.csv",
         "./c/s.csv",
