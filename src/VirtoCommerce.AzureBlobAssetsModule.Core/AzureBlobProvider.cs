@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -123,10 +124,12 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 var blobTagResult = await blob.GetTagsAsync();
                 result = ConvertToBlobInfo(blob, props.Value, blobTagResult.Value?.Tags);
             }
-            catch
+            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.BlobNotFound || ex.ErrorCode == BlobErrorCode.ContainerNotFound)
             {
                 // Since the storage account is based on transaction volume, it is better to handle the 404 (BlobNotFound) exception because that is just one api call, as opposed to checking the BlobClient.ExistsAsync() first and then making the BlobClient.DownloadAsync() call (2 api transactions).
                 //https://elcamino.cloud/articles/2020-03-30-azure-storage-blobs-net-sdk-v12-upgrade-guide-and-tips.html
+                // Only a missing blob or container means "not there", the same codes BlobBaseClient.ExistsAsync treats as false.
+                // Any other failure (a refused credential, throttling, an unreachable account) reaches the caller.
             }
 
             return result;
