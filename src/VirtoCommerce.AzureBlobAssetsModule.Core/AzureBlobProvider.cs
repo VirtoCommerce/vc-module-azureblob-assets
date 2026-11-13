@@ -34,6 +34,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
         private const string Delimiter = "/";
+        private static readonly char[] _relativeUrlSeparators = [Delimiter[0], '\\'];
+        private static readonly char[] _absoluteUrlSeparators = [Delimiter[0]];
         private readonly BlobServiceClient _blobServiceClient;
         private readonly Uri _publicBaseUri;
         private readonly bool _allowBlobPublicAccess;
@@ -645,9 +647,13 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             ThrowIfUrlHasDotSegment(url);
 
             var relativeUrl = url;
+            var separators = _relativeUrlSeparators;
             if (url.IsAbsoluteUrl())
             {
                 relativeUrl = Uri.UnescapeDataString(new Uri(url).AbsolutePath);
+                // A well-formed absolute url has no "\" written out, so one here was encoded as "%5C". Azure Storage
+                // takes it as part of the blob name, and so does a relative url, which is split before it is decoded.
+                separators = _absoluteUrlSeparators;
             }
 
             var start = 0;
@@ -662,7 +668,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
             relativeUrl = relativeUrl[start..^end];
 
-            return relativeUrl.Split(Delimiter[0], '\\'); // name may be empty
+            return relativeUrl.Split(separators); // name may be empty
         }
 
         private static string GetContainerNameFromUrl(string url)
