@@ -214,6 +214,12 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 return;
             }
 
+            // Every url is checked before the first delete, and before GetAbsoluteUri resolves its dot segments
+            foreach (var url in urlsToDelete)
+            {
+                ThrowIfUrlHasDotSegment(url);
+            }
+
             foreach (var url in urlsToDelete)
             {
                 var uri = GetAbsoluteUri(_blobServiceClient.Uri, url);
@@ -636,6 +642,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// <returns></returns>
         private static string[] GetOutlineFromUrl(string url)
         {
+            ThrowIfUrlHasDotSegment(url);
+
             var relativeUrl = url;
             if (url.IsAbsoluteUrl())
             {
@@ -665,13 +673,42 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private static string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) + Delimiter : null;
+            var directoryPath = !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            ThrowIfDotSegment(directoryPath);
+
+            return directoryPath is null ? null : directoryPath + Delimiter;
         }
 
         private static string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            var filePath = !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            ThrowIfDotSegment(filePath);
+
+            return filePath;
+        }
+
+        private static void ThrowIfUrlHasDotSegment(string url)
+        {
+            // Uri resolves "." and ".." segments of an absolute url, encoded ones included, so they show only in the path as written
+            var path = url.IsAbsoluteUrl()
+                ? new Uri(url, new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true }).AbsolutePath
+                : url;
+
+            ThrowIfDotSegment(path);
+        }
+
+        /// <summary>
+        /// Refuses a path with a <c>.</c> or <c>..</c> segment, written out or percent-encoded. A request uri is
+        /// normalized, so container <c>c</c> with blob <c>x/../../other/s.csv</c> is sent as <c>/other/s.csv</c>: a read,
+        /// write, copy or delete would reach another container.
+        /// </summary>
+        private static void ThrowIfDotSegment(string path)
+        {
+            if (path is not null && path.Split(Delimiter[0], '\\').Any(x => Uri.UnescapeDataString(x) is "." or ".."))
+            {
+                throw new ArgumentException($"The blob path '{path}' has a '.' or '..' segment, which would address a different blob or container.");
+            }
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
