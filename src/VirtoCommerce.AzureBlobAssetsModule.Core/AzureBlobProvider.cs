@@ -217,10 +217,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             // Every url is checked before the first delete, and before GetAbsoluteUri resolves its dot segments
-            foreach (var url in urlsToDelete)
-            {
-                ThrowIfUrlHasDotSegment(url);
-            }
+            Array.ForEach(urlsToDelete, ThrowIfUrlHasDotSegment);
 
             foreach (var url in urlsToDelete)
             {
@@ -721,7 +718,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// </summary>
         private static void ThrowIfDotSegment(string path)
         {
-            if (path is not null && path.Split(Delimiter[0], '\\').Any(x => Uri.UnescapeDataString(x) is "." or ".."))
+            if (path is not null && path.Split(_relativeUrlSeparators).Any(x => Uri.UnescapeDataString(x) is "." or ".."))
             {
                 throw new ArgumentException($"The blob path '{path}' has a '.' or '..' segment, which would address a different blob or container.");
             }
