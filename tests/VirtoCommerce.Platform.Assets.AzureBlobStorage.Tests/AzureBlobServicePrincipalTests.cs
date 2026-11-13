@@ -5,6 +5,7 @@ using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
+using Azure.Storage.Sas;
 using Microsoft.Extensions.Options;
 using Moq;
 using VirtoCommerce.AssetsModule.Core.Services;
@@ -81,6 +82,27 @@ public class AzureBlobServicePrincipalTests
         Assert.True(CreateProvider(_accountKeyConnectionString).CanGenerateSasUrl);
         Assert.True(CreateProvider(ServicePrincipalConnectionString).CanGenerateSasUrl);
         Assert.False(CreateProvider(SasConnectionString).CanGenerateSasUrl);
+    }
+
+    [Fact]
+    public void GenerateSasUrl_HttpsEndpoint_SignsForHttpsOnly()
+    {
+        var accountKeyUrl = CreateProvider(_accountKeyConnectionString).GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1));
+        var servicePrincipalUrl = new FakeKeyProvider().GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1));
+
+        Assert.Equal(SasProtocol.Https, new BlobUriBuilder(new Uri(accountKeyUrl)).Sas.Protocol);
+        Assert.Equal(SasProtocol.Https, new BlobUriBuilder(new Uri(servicePrincipalUrl)).Sas.Protocol);
+    }
+
+    [Fact]
+    public void GenerateSasUrl_HttpEndpoint_SignsForHttpAsWell()
+    {
+        // The local emulator listens on plain http
+        var provider = CreateProvider("UseDevelopmentStorage=true");
+
+        var signedUrl = provider.GenerateSasUrl("http://127.0.0.1:10000/devstoreaccount1/mycontainer/folder/file.csv", TimeSpan.FromDays(1));
+
+        Assert.Equal(SasProtocol.HttpsAndHttp, new BlobUriBuilder(new Uri(signedUrl)).Sas.Protocol);
     }
 
     [Fact]

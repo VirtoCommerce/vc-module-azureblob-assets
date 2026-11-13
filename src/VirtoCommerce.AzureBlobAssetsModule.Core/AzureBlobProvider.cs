@@ -569,7 +569,10 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 BlobContainerName = containerName,
                 BlobName = blobName,
                 Resource = "b",
-                ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn)
+                ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn),
+                // A url signed for an https endpoint does not open over plain http. An http endpoint is a local
+                // emulator, which the signature must not lock out.
+                Protocol = blobClient.Uri.Scheme == Uri.UriSchemeHttps ? SasProtocol.Https : SasProtocol.HttpsAndHttp,
             };
 
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
