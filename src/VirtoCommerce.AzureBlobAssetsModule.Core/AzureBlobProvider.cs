@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -33,7 +34,25 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
         private const string Delimiter = "/";
+
+        /// <summary>
+        /// The longest a url signed by a service principal can be asked for, and how long a requested user delegation
+        /// key lasts. A day short of the seven-day limit: the storage account refuses a key that ends past seven days
+        /// by its own clock, and the server's clock may run ahead of it. A url still expires with the key that signs
+        /// it, so a six-day url signed with a key some hours old lasts that much less.
+        /// </summary>
+        public static readonly TimeSpan MaxUserDelegationSasLifetime = TimeSpan.FromDays(6);
+
+        /// <summary>
+        /// How old a key may grow before a url asking to outlive it gets a new one. So a long url requests a key at
+        /// most once a day, not once per url.
+        /// </summary>
+        private static readonly TimeSpan _userDelegationKeyRenewal = TimeSpan.FromDays(1);
+
         private readonly BlobServiceClient _blobServiceClient;
+        private readonly bool _signsWithUserDelegationKey;
+        private UserDelegationKey _userDelegationKey;
+        private readonly object _userDelegationKeyLock = new();
         private readonly Uri _publicBaseUri;
         private readonly bool _allowBlobPublicAccess;
         private readonly IFileExtensionService _fileExtensionService;
@@ -54,7 +73,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             IEventPublisher eventPublisher,
             ILogger<AzureBlobProvider> logger)
         {
-            _blobServiceClient = new BlobServiceClient(options.Value.ConnectionString);
+            _blobServiceClient = AzureBlobConnectionString.CreateServiceClient(options.Value.ConnectionString, out _signsWithUserDelegationKey);
             _logger = logger ?? NullLogger<AzureBlobProvider>.Instance;
             _publicBaseUri = NormalizePublicUrl(options.Value.PublicUrl, _blobServiceClient.Uri.Scheme);
             _allowBlobPublicAccess = options.Value.AllowBlobPublicAccess;
@@ -120,8 +139,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 var blob = GetBlockBlobClient(blobUrl);
                 var props = await blob.GetPropertiesAsync();
-                var blobTagResult = await blob.GetTagsAsync();
-                result = ConvertToBlobInfo(blob, props.Value, blobTagResult.Value?.Tags);
+                var tags = await GetTagsAsync(blob, props.Value);
+                result = ConvertToBlobInfo(blob, props.Value, tags);
             }
             catch
             {
@@ -130,6 +149,32 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The blob's tags, or null when it has none or the credential may not read them.
+        /// </summary>
+        /// <remarks>
+        /// Reading tags takes <c>blobs/tags/read</c>, which only Storage Blob Data Owner has among the built-in roles; a
+        /// service principal with Storage Blob Data Reader or Contributor reads the blob but is refused its tags. That
+        /// refusal must not make a readable blob look missing. Asked only when the properties count a tag, which also
+        /// saves a billed request for every untagged blob.
+        /// </remarks>
+        internal static async Task<IDictionary<string, string>> GetTagsAsync(BlobBaseClient blob, BlobProperties properties)
+        {
+            if (properties.TagCount <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (await blob.GetTagsAsync()).Value?.Tags;
+            }
+            catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Forbidden)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -501,8 +546,20 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
 
         #region IAzureBlobUrlResolver Members
 
+        /// <summary>
+        /// True when the connection can sign a url: it holds an account key, or it is a service principal, which signs
+        /// with a user delegation key. A shared access signature signs nothing.
+        /// </summary>
+        public virtual bool CanGenerateSasUrl => _signsWithUserDelegationKey || _blobServiceClient.CanGenerateAccountSasUri;
+
         public string GenerateSasUrl(string blobUrl, TimeSpan expiresIn)
         {
+            if (_signsWithUserDelegationKey && expiresIn > MaxUserDelegationSasLifetime)
+            {
+                throw new ArgumentOutOfRangeException(nameof(expiresIn), expiresIn,
+                    $"A url signed by a service principal is valid for {MaxUserDelegationSasLifetime.TotalDays} days at most.");
+            }
+
             var blobName = GetFilePathFromUrl(blobUrl);
             var containerName = GetContainerNameFromUrl(blobUrl);
             var blobClient = GetBlobContainerClient(blobUrl)
@@ -513,12 +570,65 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 BlobContainerName = containerName,
                 BlobName = blobName,
                 Resource = "b",
-                ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn)
+                ExpiresOn = DateTimeOffset.UtcNow.Add(expiresIn),
+                // A url signed for an https endpoint does not open over plain http. An http endpoint is a local
+                // emulator, which the signature must not lock out.
+                Protocol = blobClient.Uri.Scheme == Uri.UriSchemeHttps ? SasProtocol.Https : SasProtocol.HttpsAndHttp,
             };
 
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
 
-            return blobClient.GenerateSasUri(sasBuilder).ToString();
+            if (!_signsWithUserDelegationKey)
+            {
+                return blobClient.GenerateSasUri(sasBuilder).ToString();
+            }
+
+            var key = GetUserDelegationKey(sasBuilder.ExpiresOn);
+
+            //A url signed by a key stops working when the key expires, so it does not claim to last longer
+            if (sasBuilder.ExpiresOn > key.SignedExpiresOn)
+            {
+                sasBuilder.ExpiresOn = key.SignedExpiresOn;
+            }
+
+            return blobClient.GenerateUserDelegationSasUri(sasBuilder, key).ToString();
+        }
+
+        /// <summary>
+        /// A user delegation key valid until the given time, or for at least five more days when the url asks for longer.
+        /// One key signs every url of this provider until then, so a page of signed urls costs one request to the
+        /// storage account rather than one per url.
+        /// </summary>
+        private UserDelegationKey GetUserDelegationKey(DateTimeOffset validUntil)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var longestNeeded = now.Add(MaxUserDelegationSasLifetime - _userDelegationKeyRenewal);
+            var neededUntil = validUntil < longestNeeded ? validUntil : longestNeeded;
+
+            var key = _userDelegationKey;
+            if (key is not null && key.SignedExpiresOn >= neededUntil)
+            {
+                return key;
+            }
+
+            // The provider is a singleton: urls signed at once on a cold provider, or at the daily renewal, wait for
+            // one request instead of each making its own
+            lock (_userDelegationKeyLock)
+            {
+                key = _userDelegationKey;
+                if (key is null || key.SignedExpiresOn < neededUntil)
+                {
+                    key = RequestUserDelegationKey(now.Add(MaxUserDelegationSasLifetime));
+                    _userDelegationKey = key;
+                }
+            }
+
+            return key;
+        }
+
+        protected virtual UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)
+        {
+            return _blobServiceClient.GetUserDelegationKey(startsOn: null, expiresOn: expiresOn).Value;
         }
 
         #endregion
@@ -662,13 +772,23 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private static string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) + Delimiter : null;
+            return !string.IsNullOrEmpty(result) ? DecodeBlobPath(url, result) + Delimiter : null;
         }
 
         private static string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            return !string.IsNullOrEmpty(result) ? DecodeBlobPath(url, result) : null;
+        }
+
+        /// <summary>
+        /// Decodes a blob path exactly once. The path of an absolute url is already decoded by <see cref="GetOutlineFromUrl"/>;
+        /// decoding it again turns a blob named <c>a%20b.csv</c> into <c>a b.csv</c>. A path is not form data either:
+        /// a <c>+</c> in it is a plus sign, never a space.
+        /// </summary>
+        private static string DecodeBlobPath(string url, string path)
+        {
+            return url.IsAbsoluteUrl() ? path : Uri.UnescapeDataString(path);
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
