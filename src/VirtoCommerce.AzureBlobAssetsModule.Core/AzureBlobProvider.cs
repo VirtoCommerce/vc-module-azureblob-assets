@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -152,7 +153,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         }
 
         /// <summary>
-        /// The blob's tags, or null when it has none or the credential may not read them.
+        /// The blob's tags: empty when it has none, null when the credential may not read them.
         /// </summary>
         /// <remarks>
         /// Reading tags takes <c>blobs/tags/read</c>, which only Storage Blob Data Owner has among the built-in roles; a
@@ -164,7 +165,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         {
             if (properties.TagCount <= 0)
             {
-                return null;
+                return new Dictionary<string, string>();
             }
 
             try
@@ -612,18 +613,39 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
 
             // The provider is a singleton: urls signed at once on a cold provider, or at the daily renewal, wait for
-            // one request instead of each making its own
+            // one request instead of each making its own. A failed request is not remembered, so each waiter makes its
+            // own: signing is rare, and a remembered failure would outlast a short outage.
             lock (_userDelegationKeyLock)
             {
                 key = _userDelegationKey;
                 if (key is null || key.SignedExpiresOn < neededUntil)
                 {
-                    key = RequestUserDelegationKey(now.Add(MaxUserDelegationSasLifetime));
-                    _userDelegationKey = key;
+                    key = RenewUserDelegationKey(key, now);
                 }
             }
 
             return key;
+        }
+
+        /// <summary>
+        /// A new key, or the cached one when the request fails and the cached key has not expired yet. A url it signs
+        /// expires with the key, sooner than asked, which beats no url while Entra ID or the storage account is down.
+        /// </summary>
+        private UserDelegationKey RenewUserDelegationKey(UserDelegationKey cachedKey, DateTimeOffset now)
+        {
+            try
+            {
+                var key = RequestUserDelegationKey(now.Add(MaxUserDelegationSasLifetime));
+                _userDelegationKey = key;
+
+                return key;
+            }
+            catch (Exception ex) when (ex is RequestFailedException or AuthenticationFailedException && cachedKey is not null && cachedKey.SignedExpiresOn > now)
+            {
+                _logger.LogWarning(ex, "A new user delegation key could not be requested. Urls are signed with the current key, which expires at {UserDelegationKeyExpiresOn}", cachedKey.SignedExpiresOn);
+
+                return cachedKey;
+            }
         }
 
         protected virtual UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)

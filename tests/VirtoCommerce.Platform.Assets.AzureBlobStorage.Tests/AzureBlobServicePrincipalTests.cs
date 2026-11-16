@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -159,11 +161,13 @@ public class AzureBlobServicePrincipalTests
     [Fact]
     public void GenerateSasUrl_ServicePrincipalLongerThanTheKey_ExpiresWithTheKey()
     {
-        var provider = new FakeKeyProvider();
+        //The storage account may hand out a key shorter than requested; the url does not outlive it
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(3) };
 
         var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6));
 
-        Assert.Equal(provider.LastRequestedExpiry, new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, TimeSpan.FromSeconds(1));
+        Assert.Equal(1, provider.KeyRequests);
+        Assert.InRange(new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(3).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(3).AddMinutes(1));
     }
 
     [Fact]
@@ -196,19 +200,71 @@ public class AzureBlobServicePrincipalTests
     {
         var provider = new FakeKeyProvider { RequestDuration = TimeSpan.FromMilliseconds(200) };
 
-        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, _ => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1)));
+        var signedUrls = SignAtOnce(provider, 8, TimeSpan.FromDays(1));
 
+        Assert.All(signedUrls, Assert.NotNull);
         Assert.Equal(1, provider.KeyRequests);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GenerateSasUrl_ServicePrincipalRenewalFailsWhileTheKeyIsValid_SignsWithTheCachedKey(bool authenticationFails)
+    {
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(4) };
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+        provider.Failure = authenticationFails
+            ? new AuthenticationFailedException("Entra ID is unavailable")
+            : new RequestFailedException(503, "Server busy", "ServerBusy", null);
+
+        //Six days need a key over a day younger, so the four-day one is renewed, and the renewal fails
+        var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(6));
+
+        Assert.Equal(2, provider.KeyRequests);
+        Assert.InRange(new BlobUriBuilder(new Uri(signedUrl)).Sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(4).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(4).AddMinutes(1));
+    }
+
     [Fact]
-    public async Task GetTagsAsync_BlobWithoutTags_DoesNotAskForThem()
+    public void GenerateSasUrl_ServicePrincipalUrlsSignedAtOnceWhileRenewalFails_AllSignWithTheCachedKey()
+    {
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromDays(4) };
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+        provider.Failure = new RequestFailedException(503, "Server busy", "ServerBusy", null);
+        provider.RequestDuration = TimeSpan.FromMilliseconds(50);
+
+        var signedUrls = SignAtOnce(provider, 8, TimeSpan.FromDays(6));
+
+        Assert.All(signedUrls, x => Assert.InRange(new BlobUriBuilder(new Uri(x)).Sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(4).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(4).AddMinutes(1)));
+    }
+
+    [Fact]
+    public void GenerateSasUrl_ServicePrincipalFirstKeyRequestFails_Throws()
+    {
+        var provider = new FakeKeyProvider { Failure = new RequestFailedException(403, "Not authorized", "AuthorizationPermissionMismatch", null) };
+
+        Assert.Throws<RequestFailedException>(() => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(1)));
+    }
+
+    [Fact]
+    public void GenerateSasUrl_ServicePrincipalRenewalFailsAfterTheKeyExpired_Throws()
+    {
+        //A key that has already expired stands for one cached before the outage outlasted it
+        var provider = new FakeKeyProvider { KeyLifetime = TimeSpan.FromMinutes(-1) };
+        provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1));
+        provider.Failure = new RequestFailedException(503, "Server busy", "ServerBusy", null);
+
+        Assert.Throws<RequestFailedException>(() => provider.GenerateSasUrl(BlobUrl, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public async Task GetTagsAsync_BlobWithoutTags_IsEmptyWithoutAskingForThem()
     {
         var blob = new Mock<BlobBaseClient>();
 
         var tags = await AzureBlobProvider.GetTagsAsync(blob.Object, BlobsModelFactory.BlobProperties(tagCount: 0));
 
-        Assert.Null(tags);
+        Assert.NotNull(tags);
+        Assert.Empty(tags);
         blob.Verify(x => x.GetTagsAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -245,13 +301,15 @@ public class AzureBlobServicePrincipalTests
     }
 
     [Fact]
-    public void GenerateSasUrl_AccountKeyLongerThanSixDays_SignsAsBefore()
+    public void GenerateSasUrl_AccountKeyLongerThanSixDays_SignsForTheWholeTimeWithTheAccountKey()
     {
         var provider = CreateProvider(_accountKeyConnectionString);
 
         var signedUrl = provider.GenerateSasUrl(BlobUrl, TimeSpan.FromDays(30));
 
-        Assert.Null(new BlobUriBuilder(new Uri(signedUrl)).Sas.KeyObjectId);
+        var sas = new BlobUriBuilder(new Uri(signedUrl)).Sas;
+        Assert.Null(sas.KeyObjectId);
+        Assert.InRange(sas.ExpiresOn, DateTimeOffset.UtcNow.AddDays(30).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(30).AddMinutes(1));
     }
 
     [Theory]
@@ -268,6 +326,25 @@ public class AzureBlobServicePrincipalTests
 
         Assert.Equal(("mycontainer", blobName), (accountKeyUrl.BlobContainerName, accountKeyUrl.BlobName));
         Assert.Equal(("mycontainer", blobName), (servicePrincipalUrl.BlobContainerName, servicePrincipalUrl.BlobName));
+    }
+
+    /// <summary>
+    /// Signs from several threads released together, so each reaches the key cache while the others do. A thread
+    /// of its own per caller, as a pool may not start them all before the barrier needs them.
+    /// </summary>
+    private static string[] SignAtOnce(AzureBlobProvider provider, int callers, TimeSpan expiresIn)
+    {
+        using var barrier = new Barrier(callers);
+        var signing = Enumerable.Range(0, callers)
+            .Select(_ => Task.Factory.StartNew(() =>
+            {
+                barrier.SignalAndWait();
+
+                return provider.GenerateSasUrl(BlobUrl, expiresIn);
+            }, TaskCreationOptions.LongRunning))
+            .ToArray();
+
+        return Task.WhenAll(signing).GetAwaiter().GetResult();
     }
 
     private static AzureBlobProvider CreateProvider(string connectionString)
@@ -294,10 +371,19 @@ public class AzureBlobServicePrincipalTests
         // How long a key request takes, so callers arriving together overlap it
         public TimeSpan RequestDuration { get; set; }
 
+        // Thrown by every key request while set
+        public Exception Failure { get; set; }
+
         protected override UserDelegationKey RequestUserDelegationKey(DateTimeOffset expiresOn)
         {
             Interlocked.Increment(ref _keyRequests);
             Thread.Sleep(RequestDuration);
+
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
             LastRequestedExpiry = expiresOn;
 
             //Positional: the factory has two overloads with the same parameter names in a different order
