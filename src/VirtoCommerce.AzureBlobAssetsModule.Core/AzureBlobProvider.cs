@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
@@ -33,6 +34,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         public const string ProviderName = "AzureBlobStorage";
         public const string BlobCacheControlPropertyValue = "public, max-age=604800";
         private const string Delimiter = "/";
+        private static readonly char[] _relativeUrlSeparators = [Delimiter[0], '\\'];
+        private static readonly char[] _absoluteUrlSeparators = [Delimiter[0]];
         private readonly BlobServiceClient _blobServiceClient;
         private readonly Uri _publicBaseUri;
         private readonly bool _allowBlobPublicAccess;
@@ -123,10 +126,12 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
                 var blobTagResult = await blob.GetTagsAsync();
                 result = ConvertToBlobInfo(blob, props.Value, blobTagResult.Value?.Tags);
             }
-            catch
+            catch (RequestFailedException ex) when (ex.ErrorCode == BlobErrorCode.BlobNotFound || ex.ErrorCode == BlobErrorCode.ContainerNotFound)
             {
                 // Since the storage account is based on transaction volume, it is better to handle the 404 (BlobNotFound) exception because that is just one api call, as opposed to checking the BlobClient.ExistsAsync() first and then making the BlobClient.DownloadAsync() call (2 api transactions).
                 //https://elcamino.cloud/articles/2020-03-30-azure-storage-blobs-net-sdk-v12-upgrade-guide-and-tips.html
+                // Only a missing blob or container means "not there", the same codes BlobBaseClient.ExistsAsync treats as false.
+                // Any other failure (a refused credential, throttling, an unreachable account) reaches the caller.
             }
 
             return result;
@@ -210,6 +215,9 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             {
                 return;
             }
+
+            // Every url is checked before the first delete, and before GetAbsoluteUri resolves its dot segments
+            Array.ForEach(urlsToDelete, ThrowIfUrlHasDotSegment);
 
             foreach (var url in urlsToDelete)
             {
@@ -344,8 +352,8 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             var path = folder.Name;
             if (!string.IsNullOrEmpty(folder.ParentUrl))
             {
-                var parentUrl = folder.ParentUrl.IsAbsoluteUrl()
-                    ? GetRelativeUrl(new Uri(folder.ParentUrl))
+                var parentUrl = TryGetAbsoluteUri(folder.ParentUrl, out var parentUri)
+                    ? GetRelativeUrl(parentUri)
                     : folder.ParentUrl;
                 path = UrlHelperExtensions.Combine(parentUrl, folder.Name);
             }
@@ -633,10 +641,16 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         /// <returns></returns>
         private static string[] GetOutlineFromUrl(string url)
         {
+            ThrowIfUrlHasDotSegment(url);
+
             var relativeUrl = url;
-            if (url.IsAbsoluteUrl())
+            var separators = _relativeUrlSeparators;
+            if (TryGetAbsoluteUri(url, out var absoluteUri))
             {
-                relativeUrl = Uri.UnescapeDataString(new Uri(url).AbsolutePath);
+                relativeUrl = Uri.UnescapeDataString(absoluteUri.AbsolutePath);
+                // Uri has turned a "\" written out into "/", so one here was encoded as "%5C". Azure Storage takes it
+                // as part of the blob name, and so does a relative url, which is split before it is decoded.
+                separators = _absoluteUrlSeparators;
             }
 
             var start = 0;
@@ -651,7 +665,7 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
             }
             relativeUrl = relativeUrl[start..^end];
 
-            return relativeUrl.Split(Delimiter[0], '\\'); // name may be empty
+            return relativeUrl.Split(separators); // name may be empty
         }
 
         private static string GetContainerNameFromUrl(string url)
@@ -662,13 +676,52 @@ namespace VirtoCommerce.AzureBlobAssetsModule.Core
         private static string GetDirectoryPathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) + Delimiter : null;
+            var directoryPath = !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            ThrowIfDotSegment(directoryPath);
+
+            return directoryPath is null ? null : directoryPath + Delimiter;
         }
 
         private static string GetFilePathFromUrl(string url)
         {
             var result = string.Join(Delimiter, GetOutlineFromUrl(url).Skip(1).ToArray());
-            return !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            var filePath = !string.IsNullOrEmpty(result) ? HttpUtility.UrlDecode(result) : null;
+            ThrowIfDotSegment(filePath);
+
+            return filePath;
+        }
+
+        private static void ThrowIfUrlHasDotSegment(string url)
+        {
+            // Uri resolves "." and ".." segments of an absolute url, encoded ones included, so they show only in the path as written
+            var path = TryGetAbsoluteUri(url, out _)
+                ? new Uri(url, new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true }).AbsolutePath
+                : url;
+
+            ThrowIfDotSegment(path);
+        }
+
+        /// <summary>
+        /// Reads an http or https url as absolute whether or not it is well-formed. <c>IsAbsoluteUrl</c> takes only a
+        /// well-formed one, so a space, a "\" or a bracket written out made the url a relative path in container "https:".
+        /// </summary>
+        private static bool TryGetAbsoluteUri(string url, out Uri uri)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out uri)
+                && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+        }
+
+        /// <summary>
+        /// Refuses a path with a <c>.</c> or <c>..</c> segment, written out or percent-encoded. A request uri is
+        /// normalized, so container <c>c</c> with blob <c>x/../../other/s.csv</c> is sent as <c>/other/s.csv</c>: a read,
+        /// write, copy or delete would reach another container.
+        /// </summary>
+        private static void ThrowIfDotSegment(string path)
+        {
+            if (path is not null && path.Split(_relativeUrlSeparators).Any(x => Uri.UnescapeDataString(x) is "." or ".."))
+            {
+                throw new ArgumentException($"The blob path '{path}' has a '.' or '..' segment, which would address a different blob or container.");
+            }
         }
 
         private static string GetParentUrl(Uri baseUri, string blobPrefix)
